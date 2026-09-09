@@ -565,7 +565,7 @@ button{ font-family:inherit; }
 main#canvas-wrap{
   position:relative; z-index:1;
   margin-left:calc(var(--rail-w) + 22px);
-  padding:calc(var(--topbar-h) + 28px) 20px 40px;
+  padding:calc(var(--topbar-h) + 8px) 20px 40px;
   min-height:100vh;
   transition:margin-left .2s ease;
 }
@@ -580,7 +580,7 @@ main#canvas-wrap{
    ============================================================================ */
 #dashboard-header{
   display:flex; align-items:center; justify-content:space-between; gap:1rem;
-  flex-wrap:wrap; padding:.65rem 1.1rem; margin-bottom:14px; min-height:0;
+  flex-wrap:wrap; padding:.65rem 1.1rem; margin-bottom:8px; min-height:0;
 }
 .dash-head-brand{ display:flex; align-items:center; gap:.7rem; min-width:0; flex:1; }
 .dash-head-mark{
@@ -597,20 +597,12 @@ main#canvas-wrap{
   width:auto; max-width:160px; height:40px; padding:0 2px; background:none; box-shadow:none; border-radius:8px;
 }
 .brand-logo-img{ display:block; max-width:160px; max-height:40px; width:auto; height:auto; object-fit:contain; }
-/* Small pencil badge pinned to the logo's corner — admin-only, reuses the
-   existing upload input/handler (see CompanyLogo.wire in the app script). */
-.logo-edit-btn{
-  position:absolute; right:-6px; bottom:-6px; width:18px; height:18px; border-radius:50%;
-  display:flex; align-items:center; justify-content:center; font-size:.52rem; padding:0; line-height:1;
-  background:var(--glass-fill-strong); border:1px solid var(--glass-border); color:var(--ink);
-  cursor:pointer; backdrop-filter:blur(6px);
-  transition:background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
-}
-.logo-edit-btn:hover{ background:var(--glass-fill-hover); transform:scale(1.1); }
 
-/* Title — shown exactly once, in either display mode (h1 + small pencil) or
-   edit mode (input + Save/Cancel); the two are mutually exclusive via the
-   `hidden` attribute toggled in DashboardHeader.wireTitleEdit(). */
+/* Title — shown exactly once, in either display mode (h1 + single pencil) or
+   edit mode (logo field + input + Save/Cancel); the two are mutually
+   exclusive via the `hidden` attribute toggled in DashboardHeader.wireTitleEdit().
+   The one pencil beside the title is the sole edit affordance for both the
+   title and the logo — there is no separate pencil pinned to the logo. */
 .dash-head-title-row{ display:flex; align-items:center; gap:.4rem; min-width:0; }
 .dash-title-text{
   margin:0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
@@ -618,9 +610,22 @@ main#canvas-wrap{
   font-size:clamp(1.05rem, .95rem + .5vw, 1.3rem); line-height:1.25;
 }
 #dash-title-edit-btn{ width:24px; height:24px; font-size:.68rem; flex:none; }
-.dash-title-edit-form{ display:flex; align-items:center; gap:.5rem; min-width:0; flex:1; max-width:420px; }
+.dash-title-edit-form{ display:flex; align-items:center; gap:.6rem; min-width:0; flex:1; max-width:480px; }
 .dash-title-edit-form input.glass-input{ padding-top:.45rem; padding-bottom:.45rem; font-size:.88rem; }
 .dash-title-edit-actions{ display:flex; gap:.5rem; flex:none; }
+
+/* Compact logo field inside the title edit form — small preview + change/remove
+   icon-buttons, reusing the same hidden file input & handlers CompanyLogo already
+   wires for the Settings-drawer uploader (see CompanyLogo.wire()). */
+.dash-logo-edit-field{ display:flex; align-items:center; gap:.35rem; flex:none; }
+.dash-logo-edit-preview{
+  width:30px; height:30px; border-radius:8px; flex:none; overflow:hidden;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--glass-fill-strong); border:1px solid var(--glass-border); color:var(--ink-mute);
+}
+.dash-logo-edit-preview img{ width:100%; height:100%; object-fit:contain; }
+.dash-logo-edit-preview i{ font-size:.75rem; }
+#dash-logo-change-btn, #dash-logo-remove-btn{ width:26px; height:26px; font-size:.7rem; flex:none; }
 
 .dash-head-meta{ display:flex; align-items:center; gap:.7rem; flex-wrap:wrap; }
 .cross-filter-pill{
@@ -658,6 +663,9 @@ main#canvas-wrap{
   .brand-logo-img{ max-width:100px; max-height:34px; }
   .dash-head-mark{ width:34px; height:34px; }
   .dash-title-text{ max-width:44vw; font-size:1rem; }
+  .dash-title-edit-form{ flex-wrap:wrap; max-width:none; }
+  .dash-title-edit-form input.glass-input{ flex:1 1 100%; order:1; }
+  .dash-title-edit-actions{ order:2; margin-left:auto; }
 }
 
 /* ============================================================================
@@ -679,7 +687,7 @@ main#canvas-wrap{
 .canvas-empty-state{
   grid-column:1 / -1; grid-row:1;
   display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
-  padding:4rem 1.5rem; color:var(--ink-mute);
+  padding:2.5rem 1.5rem; color:var(--ink-mute);
 }
 .canvas-empty-state i{ font-size:2.2rem; background:var(--aurora-grad); -webkit-background-clip:text; background-clip:text; color:transparent; margin-bottom:1rem; display:block; }
 .canvas-empty-state h2{ margin:.2rem 0 .4rem; font-size:1.2rem; color:var(--ink); }
@@ -993,17 +1001,26 @@ main#canvas-wrap{
         <div class="dash-head-mark" id="dash-head-mark">
           <i class="fa-solid fa-chart-pie" id="dash-head-mark-icon"></i>
           <img id="dash-head-mark-img" class="brand-logo-img" alt="Company logo" hidden>
-          <button type="button" class="logo-edit-btn admin-only" id="dash-logo-edit-btn" title="Edit logo" aria-label="Edit company logo">
-            <i class="fa-solid fa-pen"></i>
-          </button>
         </div>
         <div class="dash-head-title-row" id="dash-head-text">
           <h1 class="dash-title-text" id="dash-title">Overview Dashboard</h1>
-          <button class="glass-btn icon-only admin-only" id="dash-title-edit-btn" title="Edit dashboard title" aria-label="Edit dashboard title">
+          <button class="glass-btn icon-only admin-only" id="dash-title-edit-btn" title="Edit dashboard title and logo" aria-label="Edit dashboard title and logo">
             <i class="fa-solid fa-pen"></i>
           </button>
         </div>
         <form class="dash-title-edit-form admin-only" id="dash-title-edit-form" hidden>
+          <div class="dash-logo-edit-field" id="dash-logo-edit-field">
+            <div class="dash-logo-edit-preview" id="dash-logo-edit-preview" title="Current logo">
+              <i class="fa-solid fa-image" id="dash-logo-edit-preview-icon"></i>
+              <img id="dash-logo-edit-preview-img" alt="Current company logo" hidden>
+            </div>
+            <button type="button" class="glass-btn icon-only" id="dash-logo-change-btn" title="Change logo" aria-label="Change logo">
+              <i class="fa-solid fa-upload"></i>
+            </button>
+            <button type="button" class="glass-btn icon-only" id="dash-logo-remove-btn" title="Remove logo" aria-label="Remove logo" hidden>
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
           <input type="text" class="glass-input" id="dash-title-input" maxlength="80" placeholder="e.g. Sales Dashboard" style="padding-left:1rem;">
           <div class="dash-title-edit-actions">
             <button type="button" class="glass-btn" id="dash-title-cancel-btn">Cancel</button>
@@ -2199,12 +2216,28 @@ const CompanyLogo = {
       img.hidden = true; img.removeAttribute('src'); icon.hidden = false; mark.classList.remove('has-logo');
     }
     this._renderSettingsPreview(dataUrl);
+    this._renderHeaderEditPreview(dataUrl);
   },
   _renderSettingsPreview(dataUrl){
     const img = document.getElementById('logo-preview-img');
     if (!img) return; // defensive — the drawer markup is always present, but guard just in case
     const placeholder = document.getElementById('logo-preview-placeholder');
     const removeBtn = document.getElementById('logo-remove-btn');
+    if (dataUrl){
+      img.src = dataUrl; img.hidden = false; placeholder.hidden = true; removeBtn.hidden = false;
+    } else {
+      img.hidden = true; img.removeAttribute('src'); placeholder.hidden = false; removeBtn.hidden = true;
+    }
+  },
+  // Mirrors the Settings-drawer preview above, but for the small logo field
+  // inside the header's title-edit form (Part 5 compact header redesign) —
+  // same state, same data, just a second small view of it, kept in sync here
+  // rather than duplicating any upload/remove logic.
+  _renderHeaderEditPreview(dataUrl){
+    const img = document.getElementById('dash-logo-edit-preview-img');
+    if (!img) return; // defensive
+    const placeholder = document.getElementById('dash-logo-edit-preview-icon');
+    const removeBtn = document.getElementById('dash-logo-remove-btn');
     if (dataUrl){
       img.src = dataUrl; img.hidden = false; placeholder.hidden = true; removeBtn.hidden = false;
     } else {
@@ -2258,14 +2291,20 @@ const CompanyLogo = {
       e.target.value = '';
     }, 'CompanyLogo.upload'));
     document.getElementById('logo-remove-btn').addEventListener('click', Utils.safe(() => this.remove(), 'CompanyLogo.remove'));
-    // Compact-header pencil badge on the logo itself — reuses the SAME hidden
-    // file input + handleFile() as the Settings drawer above; no separate
-    // upload path or duplicate handler.
-    const headerEditBtn = document.getElementById('dash-logo-edit-btn');
-    if (headerEditBtn){
-      headerEditBtn.addEventListener('click', Utils.safe(() => {
+    // Header title-edit form's logo controls (Part 5 compact header redesign) —
+    // the single pencil beside the title opens this form, and its Change/Remove
+    // buttons reuse the exact same hidden file input + handleFile()/remove() as
+    // the Settings drawer above. No separate upload path or duplicate handler,
+    // and no pencil pinned to the logo itself.
+    const headerChangeBtn = document.getElementById('dash-logo-change-btn');
+    if (headerChangeBtn){
+      headerChangeBtn.addEventListener('click', Utils.safe(() => {
         document.getElementById('logo-upload-input').click();
       }, 'CompanyLogo.editFromHeader'));
+    }
+    const headerRemoveBtn = document.getElementById('dash-logo-remove-btn');
+    if (headerRemoveBtn){
+      headerRemoveBtn.addEventListener('click', Utils.safe(() => this.remove(), 'CompanyLogo.removeFromHeader'));
     }
   }
 };
