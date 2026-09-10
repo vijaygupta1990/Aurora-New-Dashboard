@@ -2816,6 +2816,9 @@ const DataUI = {
       if (!names.length) {
         select.innerHTML = '<option value="">No tabs auto-detected</option>';
         status.textContent = 'Couldn\u2019t auto-detect tabs for this sheet — enter the tab name manually below.';
+        // Not a real detection — clear the cache so the same URL auto-retries next time
+        // (e.g. after sharing access is fixed) instead of silently skipping forever.
+        this._lastDetectedId = null;
         return;
       }
       select.innerHTML = '<option value="">Choose a tab…</option>' +
@@ -2836,6 +2839,10 @@ const DataUI = {
       select.disabled = false;
       select.innerHTML = '<option value="">Auto-detect unavailable</option>';
       status.textContent = 'Couldn\u2019t auto-detect tabs for this sheet — enter the tab name manually below.';
+      // Detection failed — clear the cache so a retry (retyping/repasting the same URL,
+      // or the next debounce tick) auto-detects again instead of requiring the manual
+      // "Re-detect" button every single time.
+      this._lastDetectedId = null;
     });
   },
 
