@@ -2534,6 +2534,23 @@ const SheetEngine = {
     catch(err){ return null; }
   },
   async fetchSheetNames(id){
+    // Attempt 1: the legacy public "worksheets feed" — when a sheet is shared
+    // "Anyone with the link can view", this often returns the real tab
+    // titles directly (no API key, no error-message guessing). Best-effort:
+    // some sheets/browsers block this via CORS, in which case we silently
+    // fall through to the probe method below — no regression either way.
+    try {
+      const feedNames = await this._fetchViaWorksheetsFeed(id);
+      if (feedNames.length) return feedNames;
+    } catch(err) { /* fall through to the probe method */ }
+
+    // Attempt 2 (existing approach): there's no dedicated "list the tabs" call
+    // on the public gviz endpoint either (that needs the full Sheets API + an
+    // API key, which this project deliberately avoids). But requesting a tab
+    // name that can't possibly exist makes Google's OWN error response
+    // enumerate the spreadsheet's real tab names — so this reuses the exact
+    // same no-API-key gviz endpoint as every other read in this file, just
+    // parsed for a different purpose.
     const probeName = '__aurora_probe_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + '__';
     const params = new URLSearchParams();
     params.set('tqx', 'out:json');
@@ -2547,9 +2564,21 @@ const SheetEngine = {
     if (!json) throw new Error("Couldn't read that sheet — make sure sharing is set to \"Anyone with the link can view\".");
     if (json.status !== 'error') return []; // improbable: the random probe name happened to exist
     const detail = (json.errors && json.errors[0] && (json.errors[0].detailed_message || json.errors[0].message)) || '';
-    return this.extractSheetNames(detail);
+    return this.extractSheetNames(detail, probeName);
   },
-  extractSheetNames(detail){
+  // Legacy public GData "worksheets feed" — lists every tab's title without
+  // needing an API key, for sheets shared as "Anyone with the link can view".
+  // Not guaranteed to be reachable (CORS/deprecation vary by sheet/browser),
+  // so this is always called inside a try/catch by fetchSheetNames() above.
+  async _fetchViaWorksheetsFeed(id){
+    const url = `https://spreadsheets.google.com/feeds/worksheets/${id}/public/basic?alt=json`;
+    const res = await fetch(url, { cache:'no-store' });
+    if (!res.ok) return [];
+    const json = await res.json();
+    const entries = (json && json.feed && json.feed.entry) || [];
+    return entries.map(e => e && e.title && e.title['$t']).filter(Boolean);
+  },
+  extractSheetNames(detail, probeName){
     if (!detail) return [];
     const patterns = [
       /valid (?:sheet )?names? (?:is|are)[:\s]+([^.]+)\.?/i,
@@ -2563,7 +2592,13 @@ const SheetEngine = {
         if (names.length) return names;
       }
     }
-    return [];
+    // Fallback: Google's exact error wording has changed over time and varies
+    // by sheet, but the real tab names are almost always wrapped in quotes
+    // somewhere in the message — grab every quoted token that isn't our own
+    // random probe name, rather than depending on one exact phrasing.
+    const quoted = [...detail.matchAll(/['"]([^'"]{1,80})['"]/g)].map(m => m[1].trim()).filter(Boolean);
+    const real = quoted.filter(s => s && s !== probeName && !/^__aurora_probe_/.test(s));
+    return real.length ? [...new Set(real)] : [];
   },
 
   // ---- load / refresh ------------------------------------------------------
