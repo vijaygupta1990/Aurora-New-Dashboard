@@ -82,7 +82,9 @@
   --bg-deep:#060a16;
   --bg-deep: var(--theme-bg, #060a16);
   --bg-deep-2:#0b1224;
+  --bg-deep-2: color-mix(in srgb, var(--theme-bg, #060a16) 85%, var(--theme-canvas, #0e1730) 15%);
   --bg-deep-3:#0e1730;
+  --bg-deep-3: var(--theme-canvas, #0e1730);
 
   /* glass surface */
   --glass-fill: rgba(255,255,255,.055);
@@ -171,8 +173,8 @@ body{
 }
 ::selection{ background:var(--accent-violet); color:#fff; }
 ::-webkit-scrollbar{ width:10px; height:10px; }
-::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.14); border-radius:8px; }
-::-webkit-scrollbar-thumb:hover{ background:rgba(255,255,255,.22); }
+::-webkit-scrollbar-thumb{ background:var(--glass-border-strong); border-radius:8px; }
+::-webkit-scrollbar-thumb:hover{ background:color-mix(in srgb, var(--theme-text, #eaf1fb) 30%, transparent); }
 ::-webkit-scrollbar-track{ background:transparent; }
 
 h1,h2,h3,h4,.font-display{ font-family:var(--font-display); letter-spacing:-.01em; }
@@ -216,15 +218,6 @@ button{ font-family:inherit; }
 #ambient-bg .blob.b2{ width:44vw; height:44vw; right:-12vw; top:6vh; background:radial-gradient(circle, var(--accent-cyan), transparent 70%); animation:driftB 40s ease-in-out infinite; }
 #ambient-bg .blob.b3{ width:48vw; height:48vw; left:12vw; bottom:-20vh; background:radial-gradient(circle, var(--accent-amber), transparent 72%); animation:driftC 46s ease-in-out infinite; opacity:.35; }
 #ambient-bg .grain{ position:absolute; inset:0; opacity:.04; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
-/* faint technical grid — reinforces the "professional analytics" half of the brief */
-#ambient-bg .grid{
-  position:absolute; inset:0; opacity:.05;
-  background-image:
-    linear-gradient(rgba(255,255,255,.7) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,.7) 1px, transparent 1px);
-  background-size:56px 56px;
-  mask-image:radial-gradient(ellipse at 50% 30%, #000 0%, transparent 75%);
-}
 /* slow diagonal specular sheen drifting across the whole canvas — the "premium glass" touch */
 #ambient-bg .sheen{
   position:absolute; inset:-20%; opacity:.5;
@@ -358,6 +351,30 @@ button{ font-family:inherit; }
 .theme-drawer.open, .data-drawer.open{ transform:translateX(0); }
 .side-drawer-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; }
 .side-drawer-sub{ margin:-.4rem 0 1.1rem; }
+
+.theme-section-label{ font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-mute); margin:0 0 .55rem; }
+
+/* Light / Dark segmented toggle — sets only the neutral roles (bg/canvas/text/
+   border) via Theme.setMode(), leaving any custom accent colours untouched. */
+.theme-mode-toggle{ display:flex; gap:.5rem; margin-bottom:1.4rem; }
+.theme-mode-btn{
+  flex:1; display:flex; align-items:center; justify-content:center; gap:.45rem;
+  padding:.55rem .8rem; border-radius:var(--radius-sm); cursor:pointer;
+  background:var(--glass-fill); border:1px solid var(--glass-border); color:var(--ink-soft);
+  font-size:.82rem; font-weight:600; transition:background var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.theme-mode-btn:hover{ background:var(--glass-fill-hover); color:var(--ink); }
+.theme-mode-btn.active{ color:var(--ink); border-color:var(--accent-cyan); background:var(--glass-fill-strong); }
+
+/* Canvas Background quick presets — six curated swatches (3 light + 3 dark)
+   that set only the 'bg' role via the existing Theme.setRole(). */
+.canvas-bg-presets{ display:flex; flex-wrap:wrap; gap:.6rem; margin-bottom:1.4rem; }
+.canvas-bg-preset-btn{
+  width:32px; height:32px; border-radius:9px; cursor:pointer; padding:0;
+  border:2px solid rgba(255,255,255,.18); transition:transform var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.canvas-bg-preset-btn:hover{ transform:translateY(-2px) scale(1.06); }
+.canvas-bg-preset-btn.active{ border-color:var(--accent-cyan); }
 
 .theme-presets{ display:flex; flex-wrap:wrap; gap:.7rem; margin-bottom:1.4rem; }
 .theme-preset-btn{
@@ -573,7 +590,7 @@ main#canvas-wrap{
   display:flex; align-items:center; justify-content:space-between; gap:1rem;
   flex-wrap:wrap; padding:.65rem 1.1rem; margin-bottom:8px; min-height:0;
 }
-.dash-head-brand{ display:flex; align-items:center; gap:.7rem; min-width:0; flex:1; }
+.dash-head-brand{ display:flex; align-items:center; gap:1.1rem; min-width:0; flex:1; }
 .dash-head-mark{
   position:relative; flex:none; width:40px; height:40px; border-radius:12px; background:var(--aurora-grad);
   display:flex; align-items:center; justify-content:center; color:#0b1120; font-size:1.05rem;
@@ -648,6 +665,7 @@ main#canvas-wrap{
 }
 @media (max-width:600px){
   #dashboard-header{ padding:.6rem .85rem; }
+  .dash-head-brand{ gap:.7rem; }
   .dash-head-meta{ width:100%; justify-content:space-between; }
   .last-updated span{ display:none; }
   .dash-head-mark.has-logo{ max-width:100px; height:34px; }
@@ -843,7 +861,6 @@ main#canvas-wrap{
   <div class="blob b1"></div>
   <div class="blob b2"></div>
   <div class="blob b3"></div>
-  <div class="grid"></div>
   <div class="sheen"></div>
   <div class="grain"></div>
 </div>
@@ -1046,6 +1063,20 @@ main#canvas-wrap{
   </div>
   <p class="text-small side-drawer-sub">Every role below updates the whole dashboard live.</p>
 
+  <div class="theme-section-label">Appearance mode</div>
+  <div class="theme-mode-toggle" id="theme-mode-toggle" role="group" aria-label="Light or dark mode">
+    <button type="button" class="theme-mode-btn" data-mode="light" id="theme-mode-light">
+      <i class="fa-solid fa-sun"></i> Light
+    </button>
+    <button type="button" class="theme-mode-btn" data-mode="dark" id="theme-mode-dark">
+      <i class="fa-solid fa-moon"></i> Dark
+    </button>
+  </div>
+
+  <div class="theme-section-label">Canvas background</div>
+  <div class="canvas-bg-presets" id="canvas-bg-presets"></div>
+
+  <div class="theme-section-label">Full colour presets</div>
   <div class="theme-presets" id="theme-presets"></div>
   <div class="theme-roles" id="theme-roles"></div>
 
@@ -1842,6 +1873,50 @@ const Theme = {
     mono:     { name:'Mono Slate',       bg:'#0a0c10', canvas:'#161a22', kpi:'#cbd5e1', filter:'#94a3b8', chart:'#e2e8f0', table:'#a1a9b8', text:'#f1f5f9', border:'#ffffff', accent:'#cbd5e1', glow:'#cbd5e1' }
   },
 
+  // ---- Light / Dark Mode (Part 3b) --------------------------------------
+  // A "mode" only ever touches the four *neutral* roles (bg/canvas/text/
+  // border) — the brand accent roles (kpi/filter/chart/table/accent/glow)
+  // that an admin already picked are left exactly as-is when switching
+  // mode, so flipping Light/Dark never clobbers a customized colour theme.
+  // There's no separate "mode" flag in storage: Theme.current (already
+  // persisted as one JSON blob) simply carries these four values like any
+  // other role, and isLight() below derives the active mode from them —
+  // one source of truth, no duplicate persistence.
+  neutralPalettes: {
+    dark:  { bg:'#0F172A', canvas:'#0e1730', text:'#eaf1fb', border:'#ffffff' },
+    light: { bg:'#F8FAFC', canvas:'#ffffff', text:'#0f172a', border:'#1e293b' }
+  },
+
+  // Curated "Canvas Background" quick presets (Part 3b) — set the 'bg' role
+  // only, via the existing setRole(), so canvas/text/accents are untouched.
+  canvasBgPresets: [
+    { hex:'#F8FAFC', label:'Slate White',  mode:'light' },
+    { hex:'#F3F4F6', label:'Cool Grey',    mode:'light' },
+    { hex:'#FAF9F6', label:'Warm White',   mode:'light' },
+    { hex:'#0F172A', label:'Slate Navy',   mode:'dark' },
+    { hex:'#1E1E24', label:'Graphite',     mode:'dark' },
+    { hex:'#0B132B', label:'Midnight',     mode:'dark' }
+  ],
+
+  setMode(mode){
+    const neutrals = this.neutralPalettes[mode];
+    if (!neutrals) return;
+    this.current = { ...this.current, ...neutrals };
+    this.apply(this.current);
+    this.persist();
+  },
+
+  // Derives Light vs Dark from the current background's luminance, rather
+  // than trusting a separately-stored flag that could drift out of sync.
+  isLight(theme = this.current){
+    const hex = (theme && theme.bg ? theme.bg : this.defaults.bg).replace('#','');
+    const full = hex.length === 3 ? [...hex].map(c => c + c).join('') : hex;
+    const r = parseInt(full.substr(0,2),16) || 0;
+    const g = parseInt(full.substr(2,2),16) || 0;
+    const b = parseInt(full.substr(4,2),16) || 0;
+    return (0.299*r + 0.587*g + 0.114*b) > 150;
+  },
+
   current: null,
 
   init(){
@@ -1899,6 +1974,8 @@ const Theme = {
    the whole panel on every keystroke. */
 const ThemeUI = {
   init(){
+    this.renderModeToggle();
+    this.renderCanvasBgPresets();
     this.renderPresets();
     this.renderRoles();
     document.getElementById('theme-close').addEventListener('click', () => this.close());
@@ -1907,6 +1984,48 @@ const ThemeUI = {
       UI.toast('Theme reset to Aurora default.');
     }, 'ThemeUI.reset'));
     EventBus.on('theme:changed', Utils.safe(theme => this.syncInputs(theme), 'ThemeUI.sync'));
+  },
+
+  renderModeToggle(){
+    const lightBtn = document.getElementById('theme-mode-light');
+    const darkBtn = document.getElementById('theme-mode-dark');
+    lightBtn.addEventListener('click', Utils.safe(() => {
+      Theme.setMode('light');
+      UI.toast('Switched to Light mode.');
+    }, 'ThemeUI.mode:light'));
+    darkBtn.addEventListener('click', Utils.safe(() => {
+      Theme.setMode('dark');
+      UI.toast('Switched to Dark mode.');
+    }, 'ThemeUI.mode:dark'));
+    this.syncModeToggle();
+  },
+
+  syncModeToggle(){
+    const light = Theme.isLight();
+    const lightBtn = document.getElementById('theme-mode-light');
+    const darkBtn = document.getElementById('theme-mode-dark');
+    if (lightBtn) lightBtn.classList.toggle('active', light);
+    if (darkBtn) darkBtn.classList.toggle('active', !light);
+  },
+
+  renderCanvasBgPresets(){
+    const wrap = document.getElementById('canvas-bg-presets');
+    wrap.innerHTML = Theme.canvasBgPresets.map(p => `
+      <button type="button" class="canvas-bg-preset-btn" data-hex="${p.hex}" style="background:${p.hex}" title="${Utils.esc(p.label)} (${p.hex})" aria-label="${Utils.esc(p.label)} canvas background"></button>
+    `).join('');
+    wrap.querySelectorAll('.canvas-bg-preset-btn').forEach(btn => {
+      btn.addEventListener('click', Utils.safe(() => {
+        Theme.setRole('bg', btn.dataset.hex);
+        UI.toast('Canvas background updated.');
+      }, 'ThemeUI.canvasBg'));
+    });
+    this.syncCanvasBgPresets();
+  },
+
+  syncCanvasBgPresets(){
+    document.querySelectorAll('.canvas-bg-preset-btn').forEach(btn => {
+      btn.classList.toggle('active', Utils.isHex(Theme.current.bg) && btn.dataset.hex.toLowerCase() === Theme.current.bg.toLowerCase());
+    });
   },
 
   renderPresets(){
@@ -1969,6 +2088,8 @@ const ThemeUI = {
       if (swatch && document.activeElement !== swatch) swatch.value = theme[r.key];
       if (hex && document.activeElement !== hex) { hex.value = theme[r.key]; hex.classList.remove('invalid'); }
     });
+    this.syncModeToggle();
+    this.syncCanvasBgPresets();
   },
 
   open(){
