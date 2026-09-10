@@ -51,6 +51,15 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <!-- Chart.js (Part 13) — the only charting engine used; every chart type built on it directly, no extra chart plugins/frameworks -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<!-- SheetJS (Part 24) — used ONLY by SheetEngine.fetchSheetNames() to read the real tab names
+     straight out of a Google Sheet's own workbook export. This is the same reliable technique
+     already proven out in this project's other dashboard build: Google's full-workbook
+     export (export?format=xlsx) embeds every tab's real name in the workbook itself, so
+     reading it is exact — unlike scraping tab names out of an error message's wording, which
+     breaks silently whenever Google tweaks that wording. Not used for loading row data
+     (SheetEngine still reads data via the existing gviz JSON endpoint, untouched) — purely a
+     more reliable source of the tab list for the "Select Sheet for Dashboard" dropdown. -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <!-- Firebase — Authentication + Firestore only, used strictly for real sign-in, server-side role
      lookup, and the shared published dashboard configuration (never for hosting raw sheet data,
@@ -2534,7 +2543,16 @@ const SheetEngine = {
     catch(err){ return null; }
   },
   async fetchSheetNames(id){
-    // Attempt 1: the legacy public "worksheets feed" — when a sheet is shared
+    // Attempt 1 (Part 24, most reliable): read the real tab names straight out of Google's
+    // full-workbook export. Unlike the fallbacks below, this doesn't guess at anything — the
+    // workbook itself lists every tab, exactly as it exists right now, so this is what actually
+    // makes "Select Sheet for Dashboard" auto-detect correctly and consistently.
+    try {
+      const wbNames = await this._fetchViaWorkbookExport(id);
+      if (wbNames.length) return wbNames;
+    } catch(err) { /* fall through to the older best-effort methods below */ }
+
+    // Attempt 2: the legacy public "worksheets feed" — when a sheet is shared
     // "Anyone with the link can view", this often returns the real tab
     // titles directly (no API key, no error-message guessing). Best-effort:
     // some sheets/browsers block this via CORS, in which case we silently
@@ -2544,7 +2562,7 @@ const SheetEngine = {
       if (feedNames.length) return feedNames;
     } catch(err) { /* fall through to the probe method */ }
 
-    // Attempt 2 (existing approach): there's no dedicated "list the tabs" call
+    // Attempt 3 (existing approach): there's no dedicated "list the tabs" call
     // on the public gviz endpoint either (that needs the full Sheets API + an
     // API key, which this project deliberately avoids). But requesting a tab
     // name that can't possibly exist makes Google's OWN error response
@@ -2565,6 +2583,30 @@ const SheetEngine = {
     if (json.status !== 'error') return []; // improbable: the random probe name happened to exist
     const detail = (json.errors && json.errors[0] && (json.errors[0].detailed_message || json.errors[0].message)) || '';
     return this.extractSheetNames(detail, probeName);
+  },
+  // Part 24: the reliable tab-name source. Google's export endpoint returns the whole workbook
+  // (every tab, in its real, current form) as an .xlsx file; SheetJS (loaded above) reads that
+  // file's own table-of-contents, so wb.SheetNames is exactly the sheet's real tab list — no
+  // text-scraping, no deprecated endpoint, no guessing. Same technique already relied on
+  // elsewhere for full-sheet loads; here it's used purely to populate the tab dropdown.
+  // Best-effort like the other detection paths: any failure (private sheet, network issue,
+  // SheetJS not loaded) throws/returns [] and fetchSheetNames() falls through to the next method.
+  async _fetchViaWorkbookExport(id){
+    if (typeof XLSX === 'undefined') return [];
+    const params = new URLSearchParams();
+    params.set('format', 'xlsx');
+    params.set('_cb', Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
+    const url = `https://docs.google.com/spreadsheets/d/${id}/export?${params.toString()}`;
+    const res = await fetch(url, { cache:'no-store' });
+    if (!res.ok) return [];
+    const buf = await res.arrayBuffer();
+    if (!buf.byteLength) return [];
+    // A private/inaccessible sheet redirects to an HTML sign-in page instead of a real workbook —
+    // detect and skip that rather than letting SheetJS throw on unparseable bytes.
+    const head = new TextDecoder('utf-8').decode(buf.slice(0, 300)).trim();
+    if (/^<!DOCTYPE html/i.test(head) || /^<html/i.test(head)) return [];
+    const wb = XLSX.read(buf, { type:'array', bookSheets:true });
+    return (wb.SheetNames || []).filter(Boolean);
   },
   // Legacy public GData "worksheets feed" — lists every tab's title without
   // needing an API key, for sheets shared as "Anyone with the link can view".
