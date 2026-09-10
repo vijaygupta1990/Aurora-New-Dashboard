@@ -392,15 +392,6 @@ button{ font-family:inherit; }
 .theme-hex-input:focus{ outline:none; border-color:var(--accent-cyan); }
 .theme-hex-input.invalid{ border-color:var(--accent-coral); }
 
-/* live "which widget uses this colour" preview strip, shown in the empty canvas
-   until Parts 7–12 build the real KPI/filter/chart/table widgets */
-.theme-preview-strip{ display:flex; flex-wrap:wrap; gap:.7rem; justify-content:center; margin-top:1.6rem; }
-.theme-preview-chip{
-  display:flex; align-items:center; gap:.5rem; padding:.5rem .9rem; border-radius:999px;
-  background:var(--glass-fill-strong); border:1px solid var(--glass-border); font-size:.76rem; color:var(--ink-soft);
-}
-.theme-preview-dot{ width:10px; height:10px; border-radius:50%; }
-
 /* ============================================================================
    GOOGLE SHEET DATA ENGINE DRAWER (Part 6) — admin-only panel for
    connecting/reconnecting a Google Sheet. Shares the .data-drawer geometry
@@ -684,13 +675,6 @@ main#canvas-wrap{
   min-height:calc(100vh - var(--topbar-h) - 68px);
   align-content:start;
 }
-.canvas-empty-state{
-  grid-column:1 / -1; grid-row:1;
-  display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
-  padding:2.5rem 1.5rem; color:var(--ink-mute);
-}
-.canvas-empty-state h2{ margin:.2rem 0 .4rem; font-size:1.2rem; color:var(--ink); }
-.canvas-empty-state p{ max-width:420px; margin:0 auto; font-size:.88rem; line-height:1.6; }
 
 /* ---- Widget — a floating crystal card, placed by grid-column/row from JS ---- */
 .widget{
@@ -4109,7 +4093,6 @@ const Grid = {
     canvas.innerHTML = '';
 
     if (this.widgets.length === 0) {
-      canvas.appendChild(this.buildEmptyState());
       return;
     }
 
@@ -4118,22 +4101,6 @@ const Grid = {
       : this.widgets;
 
     ordered.forEach(widget => canvas.appendChild(this.buildWidgetEl(widget, bp)));
-  },
-
-  buildEmptyState(){
-    const el = document.createElement('div');
-    el.className = 'canvas-empty-state';
-    el.innerHTML = `
-      <h2>Your dashboard canvas is empty</h2>
-      <p>Add a widget from the rail to test drag &amp; resize. Real KPI, chart, filter and
-         table content plug into this same canvas in later parts.</p>
-      <div class="theme-preview-strip">
-        <span class="theme-preview-chip"><span class="theme-preview-dot" style="background:var(--theme-kpi)"></span>KPI</span>
-        <span class="theme-preview-chip"><span class="theme-preview-dot" style="background:var(--theme-filter)"></span>Filter</span>
-        <span class="theme-preview-chip"><span class="theme-preview-dot" style="background:var(--theme-chart)"></span>Chart</span>
-        <span class="theme-preview-chip"><span class="theme-preview-dot" style="background:var(--theme-table)"></span>Table</span>
-      </div>`;
-    return el;
   },
 
   buildWidgetEl(widget, bp){
