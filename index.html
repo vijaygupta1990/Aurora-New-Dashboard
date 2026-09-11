@@ -87,34 +87,25 @@
    tokens/classes rather than inventing new colors or one-off glass effects.
    ============================================================================ */
 :root{
-  /* base canvas */
-  --bg-deep:#060a16;
-  --bg-deep: var(--theme-bg, #060a16);
-  --bg-deep-2:#0b1224;
-  --bg-deep-2: color-mix(in srgb, var(--theme-bg, #060a16) 85%, var(--theme-canvas, #0e1730) 15%);
-  --bg-deep-3:#0e1730;
-  --bg-deep-3: var(--theme-canvas, #0e1730);
+  /* base canvas — flat light mode (default) */
+  --bg-deep:#f1f5f9;
+  --bg-deep-2:#e2e8f0;
+  --bg-deep-3:#ffffff;
 
-  /* glass surface */
-  --glass-fill: rgba(255,255,255,.055);
-  --glass-fill: color-mix(in srgb, var(--theme-canvas) 10%, transparent);
-  --glass-fill-strong: rgba(255,255,255,.10);
-  --glass-fill-strong: color-mix(in srgb, var(--theme-canvas) 18%, transparent);
-  --glass-fill-hover: rgba(255,255,255,.09);
-  --glass-fill-hover: color-mix(in srgb, var(--theme-canvas) 16%, transparent);
-  --glass-border: rgba(255,255,255,.14);
-  --glass-border: color-mix(in srgb, var(--theme-border) 22%, transparent);
-  --glass-border-strong: rgba(255,255,255,.28);
-  --glass-border-strong: color-mix(in srgb, var(--theme-border) 40%, transparent);
+  /* surface — flat, solid cards (no glass) */
+  --glass-fill:#ffffff;
+  --glass-fill-strong:#ffffff;
+  --glass-fill-hover:#f8fafc;
+  --glass-border:#e2e8f0;
+  --glass-border-strong:#cbd5e1;
   --glass-highlight: rgba(255,255,255,.5);
-  --glass-shadow: 0 8px 32px -8px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.35);
-  --glass-shadow-lg: 0 24px 60px -16px rgba(0,0,0,.65), 0 4px 16px rgba(0,0,0,.4);
+  --glass-shadow: 0 1px 2px rgba(0,0,0,.04);
+  --glass-shadow-lg: 0 4px 12px rgba(0,0,0,.06);
 
   /* ink */
-  --ink:#eaf1fb;
-  --ink: var(--theme-text, #eaf1fb);
-  --ink-soft:#a9b8d1;
-  --ink-mute:#6d7c98;
+  --ink:#0f172a;
+  --ink-soft:#334155;
+  --ink-mute:#64748b;
 
   /* accents — cyan → violet → amber aurora sweep, used sparingly per signature element */
   --accent-cyan:#22d3ee;
@@ -152,21 +143,41 @@
   --glow-coral: rgba(255,107,129,.45);
   --glow-green: rgba(61,220,151,.45);
 
-  /* ---- THEME ROLES (Part 3) — user-configurable via the Colour Theme drawer.
-     Component styles consume these (literal fallback line first, then a
-     color-mix line) so every later widget can key off one of these ten
-     roles instead of a one-off color, and a change here cascades everywhere
-     that role is used. ---- */
-  --theme-bg:#060a16;
-  --theme-canvas:#0e1730;
-  --theme-kpi:#22d3ee;
-  --theme-filter:#9b7bff;
-  --theme-chart:#fdba5c;
-  --theme-table:#3ddc97;
-  --theme-text:#eaf1fb;
-  --theme-border:#ffffff;
-  --theme-accent:#9b7bff;
-  --theme-glow:#9b7bff;
+  /* ---- ACCENT ROLES (Part 2) — single professional blue by default, applied
+     by Theme.apply() to every widget-type accent (kpi/filter/chart/table
+     icon + glow colours). No longer user-pickable per role (the old per-role
+     swatch picker and the 5 colour presets were removed); Light/Dark mode
+     (set via [data-mode] above/below) is the only remaining "theme" control.
+     bg/canvas/text/border are intentionally absent here — Part 1 already
+     moved those to the flat bg/glass/ink tokens above. ---- */
+  --theme-kpi:#2563eb;
+  --theme-filter:#2563eb;
+  --theme-chart:#2563eb;
+  --theme-table:#2563eb;
+  --theme-accent:#2563eb;
+  --theme-glow:#2563eb;
+}
+
+/* ---- DARK MODE (Part 1/2) — flat professional dark palette, applied by
+   setting data-mode="dark" on <html> via the Light/Dark toggle in the Theme
+   drawer (Theme.setMode(), Part 2). Accent roles above stay the same blue in
+   both modes. ---- */
+[data-mode="dark"]{
+  --bg-deep:#0f172a;
+  --bg-deep-2:#0b1220;
+  --bg-deep-3:#1e293b;
+
+  --glass-fill:#1e293b;
+  --glass-fill-strong:#1e293b;
+  --glass-fill-hover:#243244;
+  --glass-border:#334155;
+  --glass-border-strong:#475569;
+  --glass-shadow: 0 1px 2px rgba(0,0,0,.3);
+  --glass-shadow-lg: 0 8px 24px rgba(0,0,0,.4);
+
+  --ink:#f1f5f9;
+  --ink-soft:#cbd5e1;
+  --ink-mute:#94a3b8;
 }
 
 *{box-sizing:border-box;}
@@ -183,7 +194,7 @@ body{
 ::selection{ background:var(--accent-violet); color:#fff; }
 ::-webkit-scrollbar{ width:10px; height:10px; }
 ::-webkit-scrollbar-thumb{ background:var(--glass-border-strong); border-radius:8px; }
-::-webkit-scrollbar-thumb:hover{ background:color-mix(in srgb, var(--theme-text, #eaf1fb) 30%, transparent); }
+::-webkit-scrollbar-thumb:hover{ background:color-mix(in srgb, var(--ink) 30%, transparent); }
 ::-webkit-scrollbar-track{ background:transparent; }
 
 h1,h2,h3,h4,.font-display{ font-family:var(--font-display); letter-spacing:-.01em; }
@@ -252,34 +263,19 @@ button{ font-family:inherit; }
   background:var(--glass-fill);
   border:1px solid var(--glass-border);
   border-radius:var(--radius-lg);
-  backdrop-filter:blur(22px) saturate(140%);
-  -webkit-backdrop-filter:blur(22px) saturate(140%);
   box-shadow:var(--glass-shadow);
   isolation:isolate;
 }
-/* glossy top specular highlight — the "crystal" signature used across every glass surface */
-.glass-panel::before{
-  content:"";
-  position:absolute; inset:0; border-radius:inherit; pointer-events:none;
-  background:linear-gradient(180deg, var(--glass-highlight) 0%, rgba(255,255,255,.06) 14%, transparent 40%);
-  opacity:.16;
-  mix-blend-mode:overlay;
-}
-.glass-panel::after{
-  content:"";
-  position:absolute; left:6%; right:6%; top:0; height:1px; pointer-events:none;
-  background:linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
-  opacity:.5;
-}
+/* Part 1: flat cards — no blur, no specular/gradient overlay */
+.glass-panel::before{ content:none; }
+.glass-panel::after{ content:none; }
 .glass-panel.raised{
   box-shadow:var(--glass-shadow-lg);
-  /* true glass reflection under floating panels (Chrome/Edge/Safari; degrades gracefully elsewhere) */
-  -webkit-box-reflect: below 2px linear-gradient(transparent 40%, rgba(255,255,255,.05));
 }
 .glass-panel.interactive{ transition:transform var(--t-base) var(--ease), box-shadow var(--t-base) var(--ease), background var(--t-base) var(--ease), border-color var(--t-base) var(--ease); }
 .glass-panel.interactive:hover{
-  background:var(--glass-fill-hover); transform:translateY(-3px); border-color:var(--glass-border-strong);
-  box-shadow:var(--glass-shadow-lg), 0 0 0 1px rgba(255,255,255,.06), 0 18px 40px -12px var(--glow-violet);
+  background:var(--glass-fill-hover); transform:translateY(-2px); border-color:var(--glass-border-strong);
+  box-shadow:var(--glass-shadow-lg);
 }
 
 .glass-btn{
@@ -288,20 +284,13 @@ button{ font-family:inherit; }
   padding:.6rem 1.1rem; border-radius:999px; border:1px solid var(--glass-border);
   background:var(--glass-fill-strong); color:var(--ink); font-weight:600; font-size:.88rem;
   cursor:pointer; transition:background var(--t-base) var(--ease), border-color var(--t-base) var(--ease), transform var(--t-fast) var(--ease), box-shadow var(--t-base) var(--ease);
-  backdrop-filter:blur(14px);
 }
-/* light-sweep reflection that travels across the button on hover — the "reflections" deliverable applied to controls */
-.glass-btn::before{
-  content:""; position:absolute; inset:0; pointer-events:none;
-  background:linear-gradient(115deg, transparent 35%, rgba(255,255,255,.4) 48%, transparent 62%);
-  transform:translateX(-140%); transition:transform var(--t-slow) var(--ease);
-}
-.glass-btn:hover::before{ transform:translateX(140%); }
-.glass-btn:hover{ background:var(--glass-fill-hover); border-color:var(--glass-border-strong); transform:translateY(-1px); box-shadow:0 10px 24px -10px rgba(0,0,0,.5); }
+/* Part 3: flat buttons — no blur, no light-sweep reflection */
+.glass-btn::before{ content:none; }
+.glass-btn:hover{ background:var(--glass-fill-hover); border-color:var(--glass-border-strong); box-shadow:var(--glass-shadow-lg); }
 .glass-btn:active{ transform:translateY(0); }
 .glass-btn.icon-only{ width:40px; height:40px; padding:0; border-radius:50%; }
 .glass-btn:disabled{ opacity:.4; cursor:not-allowed; transform:none; }
-.glass-btn:disabled::before{ display:none; }
 
 .btn-aurora{
   border:none; color:#081018; font-weight:700; background:var(--aurora-grad);
@@ -312,11 +301,11 @@ button{ font-family:inherit; }
 
 .glass-input{
   width:100%; padding:.75rem 1rem .75rem 2.6rem; border-radius:999px;
-  border:1px solid var(--glass-border); background:rgba(255,255,255,.05); color:var(--ink);
+  border:1px solid var(--glass-border); background:var(--glass-fill); color:var(--ink);
   font-size:.92rem; transition:border-color var(--t-base) var(--ease), background var(--t-base) var(--ease), box-shadow var(--t-base) var(--ease);
 }
 .glass-input::placeholder{ color:var(--ink-mute); }
-.glass-input:focus{ outline:none; border-color:var(--accent-cyan); background:rgba(255,255,255,.08); box-shadow:0 0 0 3px rgba(34,211,238,.15), 0 0 20px -6px var(--glow-cyan); }
+.glass-input:focus{ outline:none; border-color:var(--theme-accent); background:var(--glass-fill); box-shadow:0 0 0 3px color-mix(in srgb, var(--theme-accent) 18%, transparent); }
 .input-wrap{ position:relative; }
 .input-wrap i{ position:absolute; left:1rem; top:50%; transform:translateY(-50%); color:var(--ink-mute); font-size:.85rem; }
 .input-wrap .toggle-eye{ position:absolute; right:1rem; left:auto; cursor:pointer; }
@@ -341,8 +330,8 @@ button{ font-family:inherit; }
 .glow-green{ box-shadow:0 0 0 1px rgba(61,220,151,.25), 0 0 26px -4px var(--glow-green); }
 
 /* ============================================================================
-   COLOUR THEME DRAWER (Part 3) — admin-only panel for customizing the
-   10 theme roles. Drives the --theme-* variables at :root via Theme.apply().
+   THEME DRAWER (Part 2) — admin-only panel; Light/Dark mode toggle only.
+   Sets [data-mode] on <html> via Theme.apply()/Theme.setMode().
    ============================================================================ */
 .drawer-backdrop{
   position:fixed; inset:0; z-index:55; background:rgba(4,6,14,.5);
@@ -363,8 +352,7 @@ button{ font-family:inherit; }
 
 .theme-section-label{ font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-mute); margin:0 0 .55rem; }
 
-/* Light / Dark segmented toggle — sets only the neutral roles (bg/canvas/text/
-   border) via Theme.setMode(), leaving any custom accent colours untouched. */
+/* Light / Dark segmented toggle — the only theme control left (Part 2). */
 .theme-mode-toggle{ display:flex; gap:.5rem; margin-bottom:1.4rem; }
 .theme-mode-btn{
   flex:1; display:flex; align-items:center; justify-content:center; gap:.45rem;
@@ -373,50 +361,7 @@ button{ font-family:inherit; }
   font-size:.82rem; font-weight:600; transition:background var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
 .theme-mode-btn:hover{ background:var(--glass-fill-hover); color:var(--ink); }
-.theme-mode-btn.active{ color:var(--ink); border-color:var(--accent-cyan); background:var(--glass-fill-strong); }
-
-/* Canvas Background quick presets — six curated swatches (3 light + 3 dark)
-   that set only the 'bg' role via the existing Theme.setRole(). */
-.canvas-bg-presets{ display:flex; flex-wrap:wrap; gap:.6rem; margin-bottom:1.4rem; }
-.canvas-bg-preset-btn{
-  width:32px; height:32px; border-radius:9px; cursor:pointer; padding:0;
-  border:2px solid rgba(255,255,255,.18); transition:transform var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
-}
-.canvas-bg-preset-btn:hover{ transform:translateY(-2px) scale(1.06); }
-.canvas-bg-preset-btn.active{ border-color:var(--accent-cyan); }
-
-.theme-presets{ display:flex; flex-wrap:wrap; gap:.7rem; margin-bottom:1.4rem; }
-.theme-preset-btn{
-  display:flex; flex-direction:column; align-items:center; gap:.35rem; background:none; border:none; cursor:pointer;
-  color:var(--ink-mute); font-size:.68rem; font-weight:600; padding:.2rem; transition:color var(--t-fast) var(--ease);
-}
-.theme-preset-btn:hover, .theme-preset-btn.active{ color:var(--ink); }
-.theme-preset-swatch{
-  width:38px; height:38px; border-radius:50%; border:2px solid rgba(255,255,255,.18);
-  transition:transform var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
-}
-.theme-preset-btn:hover .theme-preset-swatch{ transform:translateY(-2px) scale(1.05); }
-.theme-preset-btn.active .theme-preset-swatch{ border-color:var(--accent-cyan); }
-
-.theme-role-row{
-  display:flex; align-items:center; gap:.7rem; padding:.55rem .2rem; border-bottom:1px solid rgba(255,255,255,.06);
-}
-.theme-role-row:last-child{ border-bottom:none; }
-.theme-role-name{ flex:1; font-size:.83rem; font-weight:600; }
-.theme-role-name small{ display:block; font-weight:400; color:var(--ink-mute); font-size:.7rem; }
-.theme-swatch-input{
-  width:34px; height:34px; padding:0; border:2px solid var(--glass-border); border-radius:50%;
-  background:none; cursor:pointer; overflow:hidden;
-}
-.theme-swatch-input::-webkit-color-swatch-wrapper{ padding:0; }
-.theme-swatch-input::-webkit-color-swatch{ border:none; border-radius:50%; }
-.theme-hex-input{
-  width:84px; padding:.4rem .6rem; border-radius:8px; border:1px solid var(--glass-border);
-  background:rgba(255,255,255,.05); color:var(--ink); font-family:var(--font-mono); font-size:.75rem;
-  transition:border-color var(--t-fast) var(--ease);
-}
-.theme-hex-input:focus{ outline:none; border-color:var(--accent-cyan); }
-.theme-hex-input.invalid{ border-color:var(--accent-coral); }
+.theme-mode-btn.active{ color:var(--ink); border-color:var(--theme-accent); background:var(--glass-fill-strong); }
 
 /* ============================================================================
    GOOGLE SHEET DATA ENGINE DRAWER (Part 6) — admin-only panel for
@@ -648,14 +593,15 @@ main#canvas-wrap{
 .cross-filter-pill{
   display:inline-flex; align-items:center; gap:.5rem; padding:.42rem .85rem; border-radius:999px;
   font-size:.78rem; font-weight:600; white-space:nowrap; cursor:pointer;
-  background:linear-gradient(135deg, rgba(124,92,255,.22), rgba(34,211,238,.14));
-  border:1px solid rgba(124,92,255,.4); color:var(--ink);
+  background:color-mix(in srgb, var(--theme-accent) 10%, var(--glass-fill));
+  border:1px solid color-mix(in srgb, var(--theme-accent) 35%, var(--glass-border));
+  color:var(--theme-accent);
 }
-.cross-filter-pill:hover{ border-color:rgba(124,92,255,.7); }
+.cross-filter-pill:hover{ border-color:color-mix(in srgb, var(--theme-accent) 60%, var(--glass-border)); background:color-mix(in srgb, var(--theme-accent) 16%, var(--glass-fill)); }
 .refresh-pill{
   display:inline-flex; align-items:center; gap:.5rem; padding:.42rem .85rem; border-radius:999px;
   font-size:.78rem; font-weight:600; color:var(--ink-soft); white-space:nowrap;
-  background:var(--glass-fill-strong); border:1px solid var(--glass-border);
+  background:var(--glass-fill); border:1px solid var(--glass-border);
 }
 .refresh-dot{ width:8px; height:8px; border-radius:50%; background:var(--accent-green); box-shadow:0 0 0 3px rgba(61,220,151,.18); transition:background var(--t-base) var(--ease); }
 .refresh-pill[data-state="syncing"] .refresh-dot{ background:var(--accent-cyan); box-shadow:0 0 0 3px rgba(34,211,238,.18); animation:pulseDot 1s ease-in-out infinite; }
@@ -711,7 +657,7 @@ main#canvas-wrap{
   padding:0; overflow:hidden;
   transition:box-shadow var(--t-base) var(--ease), border-color var(--t-base) var(--ease);
 }
-.widget:hover{ border-color:var(--glass-border-strong); box-shadow:var(--glass-shadow-lg), 0 0 24px -8px var(--glow-violet); }
+.widget:hover{ border-color:var(--glass-border-strong); box-shadow:var(--glass-shadow-lg); }
 .widget.dragging, .widget.resizing{
   z-index:40; opacity:.88; cursor:grabbing; transition:none;
   box-shadow:var(--glass-shadow-lg), 0 0 0 2px var(--accent-cyan), 0 0 32px -6px var(--glow-cyan);
@@ -720,7 +666,7 @@ main#canvas-wrap{
 
 .widget-head{
   display:flex; align-items:center; gap:.55rem; padding:.85rem .95rem .7rem;
-  border-bottom:1px solid rgba(255,255,255,.07); flex:none;
+  border-bottom:1px solid var(--glass-border); flex:none;
 }
 .widget-drag-handle{
   color:var(--ink-mute); cursor:grab; display:flex; align-items:center; font-size:.85rem;
@@ -750,35 +696,39 @@ main#canvas-wrap{
 }
 .widget:hover .widget-resize-handle{ opacity:1; }
 
-/* ---- Filter widget (Part 9) — minimal, functional; Chart/Table parts add their own similarly
-   plain content until each gets its own visual-design part. ---- */
+/* ---- Filter widget (Part 9 functionality, Part 5 flat visual design) — a
+   compact rectangular dropdown (not the pill-shaped .glass-input used for
+   text inputs) to match Index_Reference.html's .filter-select, built from
+   the same flat tokens as the rest of the dashboard. ---- */
 .filter-widget-body{ width:100%; gap:.6rem; }
+.filter-widget-body .filter-select{
+  border-radius:var(--radius-sm); padding:.5rem .7rem; font-size:.82rem;
+}
 .filter-widget-body select[multiple]{ text-align:left; min-height:110px; }
 
-/* ---- KPI widget (Part 11) — plain value + label; Part 12 restyles this without touching
-   the underlying markup/functionality. ---- */
-/* ---- KPI widget (Part 11 functionality, Part 12 Crystal visual design) ----
-   Translucent glass, a soft glow ring around the icon in the KPI's own accent
-   colour, large mono value, gentle hover lift — all layered on the SAME
-   widget shell every widget type shares, no separate KPI panel behind it. */
-.kpi-widget-body{ gap:.3rem; position:relative; --kpi-accent: var(--theme-kpi); }
+/* ---- KPI widget (Part 11 functionality, Part 12 flat visual design) ----
+   Flat card matching Index_Reference.html's .kpi-box: small uppercase muted
+   label (kpi-sub), large bold value, a trend badge + optional target label
+   on one row, and a 4px rounded progress bar beneath when a target is set.
+   No blur/glow — same flat tokens as the rest of the dashboard. */
+.kpi-widget-body{ gap:.3rem; position:relative; width:100%; align-items:stretch; text-align:left; --kpi-accent: var(--theme-kpi); }
 .kpi-icon-badge{
   width:2.5rem; height:2.5rem; border-radius:12px; display:flex; align-items:center; justify-content:center;
   font-size:1.05rem; color:#fff; margin-bottom:.3rem;
-  background:linear-gradient(135deg, var(--kpi-accent), color-mix(in srgb, var(--kpi-accent) 60%, #22D3EE));
-  box-shadow:0 0 0 1px rgba(255,255,255,.15) inset, 0 8px 20px -6px var(--kpi-accent);
-  transition:transform var(--t-base) var(--ease);
+  background:var(--kpi-accent);
 }
-.widget:hover .kpi-icon-badge{ transform:translateY(-2px) scale(1.04); }
 .kpi-value{
-  font-family:var(--font-mono); font-size:2.15rem; font-weight:700; color:var(--ink); line-height:1;
-  text-shadow:0 0 24px color-mix(in srgb, var(--kpi-accent) 35%, transparent);
+  font-size:2.15rem; font-weight:700; color:var(--ink); line-height:1;
 }
-.kpi-sub{ font-size:.72rem; }
-.kpi-trend{ display:inline-flex; align-items:center; gap:.3rem; font-size:.72rem; font-weight:600; margin-top:.15rem; padding:.15rem .5rem; border-radius:999px; }
+.kpi-sub{ font-size:.72rem; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-mute); }
+.kpi-status-row{ display:flex; align-items:center; justify-content:space-between; gap:.5rem; font-size:.72rem; margin-top:.2rem; flex-wrap:wrap; }
+.kpi-trend{ display:inline-flex; align-items:center; gap:.3rem; font-size:.72rem; font-weight:600; padding:.15rem .5rem; border-radius:999px; }
 .kpi-trend.up{ color:var(--accent-green); background:rgba(61,220,151,.12); }
 .kpi-trend.down{ color:var(--accent-coral); background:rgba(255,107,129,.12); }
 .kpi-trend.flat{ color:var(--ink-mute); background:var(--glass-fill); }
+.kpi-target{ font-size:.72rem; color:var(--ink-mute); }
+.progress-track{ width:100%; height:4px; background:var(--glass-fill); border:1px solid var(--glass-border); border-radius:2px; margin-top:.6rem; overflow:hidden; }
+.progress-fill{ height:100%; background:var(--kpi-accent); }
 .kpi-icon-color-row{ display:flex; gap:.7rem; align-items:flex-end; margin-top:.2rem; }
 
 /* ---- shared small-form bits reused by the Filters/Calc/KPI drawers ---- */
@@ -1067,10 +1017,10 @@ main#canvas-wrap{
 <div class="drawer-backdrop" id="drawer-backdrop"></div>
 <aside class="glass-panel raised theme-drawer" id="theme-drawer" aria-hidden="true">
   <div class="side-drawer-head">
-    <h3 class="text-title">Colour Theme</h3>
+    <h3 class="text-title">Appearance</h3>
     <button class="glass-btn icon-only" id="theme-close" aria-label="Close theme drawer"><i class="fa-solid fa-xmark"></i></button>
   </div>
-  <p class="text-small side-drawer-sub">Every role below updates the whole dashboard live.</p>
+  <p class="text-small side-drawer-sub">Switch the whole dashboard between a light and dark professional look.</p>
 
   <div class="theme-section-label">Appearance mode</div>
   <div class="theme-mode-toggle" id="theme-mode-toggle" role="group" aria-label="Light or dark mode">
@@ -1081,13 +1031,6 @@ main#canvas-wrap{
       <i class="fa-solid fa-moon"></i> Dark
     </button>
   </div>
-
-  <div class="theme-section-label">Canvas background</div>
-  <div class="canvas-bg-presets" id="canvas-bg-presets"></div>
-
-  <div class="theme-section-label">Full colour presets</div>
-  <div class="theme-presets" id="theme-presets"></div>
-  <div class="theme-roles" id="theme-roles"></div>
 
   <button class="glass-btn" id="theme-reset" style="width:100%;justify-content:center;margin-top:1.2rem;">
     <i class="fa-solid fa-rotate-left"></i> Reset to default theme
@@ -1362,6 +1305,10 @@ main#canvas-wrap{
         <label class="data-field-label" for="kpi-color-input">Colour</label>
         <input type="color" class="glass-input" id="kpi-color-input" value="#7c5cff" style="padding:.25rem;height:2.5rem;width:3.2rem;">
       </div>
+    </div>
+    <label class="data-field-label" for="kpi-target-input">Target <span class="text-mute-inline">(optional)</span></label>
+    <div class="input-wrap"><i class="fa-solid fa-bullseye"></i>
+      <input class="glass-input" type="number" id="kpi-target-input" placeholder="e.g. 2000000" autocomplete="off">
     </div>
     <button type="submit" class="glass-btn btn-aurora" id="kpi-submit-btn" style="width:100%;justify-content:center;margin-top:.9rem;">
       <i class="fa-solid fa-plus"></i> Add KPI
@@ -1848,82 +1795,42 @@ const Auth = {
   }
 };
 
-/* ---- Theme (Part 3) --------------------------------------------------------
-   Ten configurable colour roles, each mapped 1:1 to a --theme-* CSS custom
-   property. Component CSS reads those variables (see the design-system
-   <style> block), so Theme.apply() is the ONLY place that needs to touch
-   colours for the whole dashboard to update consistently. */
+/* ---- Theme (Part 2) --------------------------------------------------------
+   Two things this module owns:
+   1) Light/Dark mode — sets document.documentElement.dataset.mode, which the
+      [data-mode="dark"] CSS block (Part 1) reads to flip the bg/glass/ink
+      tokens. This is the ONLY visual switch left; the old 5-preset picker and
+      per-role swatch pickers were removed (Part 2).
+   2) Accent roles (kpi/filter/chart/table/accent/glow) — still pushed to
+      --theme-* CSS vars for whichever widget CSS reads them, but no longer
+      user-pickable; they default to one professional blue in both modes. */
 const Theme = {
   STORAGE_KEY: DashboardId.key('theme'),
 
   roles: [
-    { key:'bg',     label:'Background', hint:'Page canvas behind everything' },
-    { key:'canvas', label:'Canvas',     hint:'Tint of every glass surface' },
     { key:'kpi',    label:'KPI',        hint:'KPI card accent' },
     { key:'filter', label:'Filter',     hint:'Filter bar accent' },
     { key:'chart',  label:'Chart',      hint:'Chart accent' },
     { key:'table',  label:'Table',      hint:'Table accent' },
-    { key:'text',   label:'Text',       hint:'Primary text colour' },
-    { key:'border', label:'Border',     hint:'Glass edge colour' },
     { key:'accent', label:'Accent',     hint:'Buttons, badges, focus' },
     { key:'glow',   label:'Glow',       hint:'Hover / highlight halo' }
   ],
 
+  ACCENT: '#2563eb',
+
   defaults: {
-    bg:'#060a16', canvas:'#0e1730', kpi:'#22d3ee', filter:'#9b7bff', chart:'#fdba5c',
-    table:'#3ddc97', text:'#eaf1fb', border:'#ffffff', accent:'#9b7bff', glow:'#9b7bff'
+    mode:'light', kpi:'#2563eb', filter:'#2563eb', chart:'#2563eb',
+    table:'#2563eb', accent:'#2563eb', glow:'#2563eb'
   },
-
-  presets: {
-    aurora:   { name:'Aurora (default)', bg:'#060a16', canvas:'#0e1730', kpi:'#22d3ee', filter:'#9b7bff', chart:'#fdba5c', table:'#3ddc97', text:'#eaf1fb', border:'#ffffff', accent:'#9b7bff', glow:'#9b7bff' },
-    midnight: { name:'Midnight Emerald', bg:'#050f0c', canvas:'#0b241d', kpi:'#34d399', filter:'#22d3ee', chart:'#fbbf24', table:'#a78bfa', text:'#eafff6', border:'#ffffff', accent:'#34d399', glow:'#34d399' },
-    sunset:   { name:'Sunset Coral',     bg:'#170a12', canvas:'#2a1220', kpi:'#ff6b81', filter:'#fb923c', chart:'#fdba5c', table:'#f472b6', text:'#fff1f4', border:'#ffffff', accent:'#ff6b81', glow:'#fb923c' },
-    ocean:    { name:'Ocean Cyan',       bg:'#04121a', canvas:'#0a2431', kpi:'#38bdf8', filter:'#22d3ee', chart:'#818cf8', table:'#2dd4bf', text:'#eafbff', border:'#ffffff', accent:'#38bdf8', glow:'#22d3ee' },
-    mono:     { name:'Mono Slate',       bg:'#0a0c10', canvas:'#161a22', kpi:'#cbd5e1', filter:'#94a3b8', chart:'#e2e8f0', table:'#a1a9b8', text:'#f1f5f9', border:'#ffffff', accent:'#cbd5e1', glow:'#cbd5e1' }
-  },
-
-  // ---- Light / Dark Mode (Part 3b) --------------------------------------
-  // A "mode" only ever touches the four *neutral* roles (bg/canvas/text/
-  // border) — the brand accent roles (kpi/filter/chart/table/accent/glow)
-  // that an admin already picked are left exactly as-is when switching
-  // mode, so flipping Light/Dark never clobbers a customized colour theme.
-  // There's no separate "mode" flag in storage: Theme.current (already
-  // persisted as one JSON blob) simply carries these four values like any
-  // other role, and isLight() below derives the active mode from them —
-  // one source of truth, no duplicate persistence.
-  neutralPalettes: {
-    dark:  { bg:'#0F172A', canvas:'#0e1730', text:'#eaf1fb', border:'#ffffff' },
-    light: { bg:'#F8FAFC', canvas:'#ffffff', text:'#0f172a', border:'#1e293b' }
-  },
-
-  // Curated "Canvas Background" quick presets (Part 3b) — set the 'bg' role
-  // only, via the existing setRole(), so canvas/text/accents are untouched.
-  canvasBgPresets: [
-    { hex:'#F8FAFC', label:'Slate White',  mode:'light' },
-    { hex:'#F3F4F6', label:'Cool Grey',    mode:'light' },
-    { hex:'#FAF9F6', label:'Warm White',   mode:'light' },
-    { hex:'#0F172A', label:'Slate Navy',   mode:'dark' },
-    { hex:'#1E1E24', label:'Graphite',     mode:'dark' },
-    { hex:'#0B132B', label:'Midnight',     mode:'dark' }
-  ],
 
   setMode(mode){
-    const neutrals = this.neutralPalettes[mode];
-    if (!neutrals) return;
-    this.current = { ...this.current, ...neutrals };
+    this.current = { ...this.current, mode: mode === 'dark' ? 'dark' : 'light' };
     this.apply(this.current);
     this.persist();
   },
 
-  // Derives Light vs Dark from the current background's luminance, rather
-  // than trusting a separately-stored flag that could drift out of sync.
   isLight(theme = this.current){
-    const hex = (theme && theme.bg ? theme.bg : this.defaults.bg).replace('#','');
-    const full = hex.length === 3 ? [...hex].map(c => c + c).join('') : hex;
-    const r = parseInt(full.substr(0,2),16) || 0;
-    const g = parseInt(full.substr(2,2),16) || 0;
-    const b = parseInt(full.substr(4,2),16) || 0;
-    return (0.299*r + 0.587*g + 0.114*b) > 150;
+    return (theme && theme.mode) !== 'dark';
   },
 
   current: null,
@@ -1947,27 +1854,12 @@ const Theme = {
   },
 
   apply(theme){
+    document.documentElement.dataset.mode = theme.mode === 'dark' ? 'dark' : 'light';
     this.roles.forEach(r => {
       document.documentElement.style.setProperty('--theme-' + r.key, theme[r.key] || this.defaults[r.key]);
     });
     State.set('theme', { ...theme });
     EventBus.emit('theme:changed', { ...theme });
-  },
-
-  setRole(key, hex){
-    if (!Utils.isHex(hex)) return false;
-    this.current[key] = hex;
-    this.apply(this.current);
-    this.persist();
-    return true;
-  },
-
-  applyPreset(name){
-    const preset = this.presets[name];
-    if (!preset) return;
-    this.current = { ...this.defaults, ...preset };
-    this.apply(this.current);
-    this.persist();
   },
 
   reset(){
@@ -1977,20 +1869,16 @@ const Theme = {
   }
 };
 
-/* ---- ThemeUI (Part 3) -------------------------------------------------------
-   Renders the Colour Theme drawer once and re-syncs its inputs whenever the
-   theme changes elsewhere (e.g. a preset click), rather than re-rendering
-   the whole panel on every keystroke. */
+/* ---- ThemeUI (Part 2) -------------------------------------------------------
+   Renders the Appearance drawer's Light/Dark toggle and keeps it in sync
+   whenever the mode changes elsewhere (e.g. Reset). */
 const ThemeUI = {
   init(){
     this.renderModeToggle();
-    this.renderCanvasBgPresets();
-    this.renderPresets();
-    this.renderRoles();
     document.getElementById('theme-close').addEventListener('click', () => this.close());
     document.getElementById('theme-reset').addEventListener('click', Utils.safe(() => {
       Theme.reset();
-      UI.toast('Theme reset to Aurora default.');
+      UI.toast('Theme reset to default.');
     }, 'ThemeUI.reset'));
     EventBus.on('theme:changed', Utils.safe(theme => this.syncInputs(theme), 'ThemeUI.sync'));
   },
@@ -2017,88 +1905,10 @@ const ThemeUI = {
     if (darkBtn) darkBtn.classList.toggle('active', !light);
   },
 
-  renderCanvasBgPresets(){
-    const wrap = document.getElementById('canvas-bg-presets');
-    wrap.innerHTML = Theme.canvasBgPresets.map(p => `
-      <button type="button" class="canvas-bg-preset-btn" data-hex="${p.hex}" style="background:${p.hex}" title="${Utils.esc(p.label)} (${p.hex})" aria-label="${Utils.esc(p.label)} canvas background"></button>
-    `).join('');
-    wrap.querySelectorAll('.canvas-bg-preset-btn').forEach(btn => {
-      btn.addEventListener('click', Utils.safe(() => {
-        Theme.setRole('bg', btn.dataset.hex);
-        UI.toast('Canvas background updated.');
-      }, 'ThemeUI.canvasBg'));
-    });
-    this.syncCanvasBgPresets();
-  },
-
-  syncCanvasBgPresets(){
-    document.querySelectorAll('.canvas-bg-preset-btn').forEach(btn => {
-      btn.classList.toggle('active', Utils.isHex(Theme.current.bg) && btn.dataset.hex.toLowerCase() === Theme.current.bg.toLowerCase());
-    });
-  },
-
-  renderPresets(){
-    const wrap = document.getElementById('theme-presets');
-    wrap.innerHTML = Object.entries(Theme.presets).map(([key, preset]) => `
-      <button class="theme-preset-btn" data-preset="${key}" title="${Utils.esc(preset.name)}">
-        <span class="theme-preset-swatch" style="background:linear-gradient(135deg, ${preset.accent}, ${preset.kpi} 55%, ${preset.chart})"></span>
-        ${Utils.esc(preset.name.split(' ')[0])}
-      </button>
-    `).join('');
-    wrap.querySelectorAll('.theme-preset-btn').forEach(btn => {
-      btn.addEventListener('click', Utils.safe(() => {
-        Theme.applyPreset(btn.dataset.preset);
-        UI.toast('Applied the ' + Theme.presets[btn.dataset.preset].name + ' preset.');
-      }, 'ThemeUI.preset'));
-    });
-  },
-
-  renderRoles(){
-    const wrap = document.getElementById('theme-roles');
-    wrap.innerHTML = Theme.roles.map(r => `
-      <div class="theme-role-row" data-role="${r.key}">
-        <span class="theme-role-name">${Utils.esc(r.label)}<small>${Utils.esc(r.hint)}</small></span>
-        <input type="color" class="theme-swatch-input" id="theme-swatch-${r.key}" value="${Theme.current[r.key]}" aria-label="${Utils.esc(r.label)} colour picker">
-        <input type="text" class="theme-hex-input" id="theme-hex-${r.key}" value="${Theme.current[r.key]}" maxlength="7" spellcheck="false" aria-label="${Utils.esc(r.label)} hex value">
-      </div>
-    `).join('');
-
-    Theme.roles.forEach(r => {
-      const swatch = document.getElementById('theme-swatch-' + r.key);
-      const hex = document.getElementById('theme-hex-' + r.key);
-
-      swatch.addEventListener('input', Utils.safe(() => {
-        hex.value = swatch.value;
-        hex.classList.remove('invalid');
-        Theme.setRole(r.key, swatch.value);
-      }, 'ThemeUI.swatch:' + r.key));
-
-      hex.addEventListener('input', Utils.safe(() => {
-        const value = hex.value.trim();
-        if (Utils.isHex(value)) {
-          hex.classList.remove('invalid');
-          swatch.value = value.length === 4
-            ? '#' + [...value.slice(1)].map(c => c + c).join('')
-            : value;
-          Theme.setRole(r.key, value);
-        } else {
-          hex.classList.add('invalid');
-        }
-      }, 'ThemeUI.hex:' + r.key));
-    });
-  },
-
-  // Called whenever the theme changes from elsewhere (preset, reset) so the
-  // open drawer's inputs never go stale.
+  // Called whenever the theme changes from elsewhere (e.g. Reset) so the
+  // open drawer's toggle never goes stale.
   syncInputs(theme){
-    Theme.roles.forEach(r => {
-      const swatch = document.getElementById('theme-swatch-' + r.key);
-      const hex = document.getElementById('theme-hex-' + r.key);
-      if (swatch && document.activeElement !== swatch) swatch.value = theme[r.key];
-      if (hex && document.activeElement !== hex) { hex.value = theme[r.key]; hex.classList.remove('invalid'); }
-    });
     this.syncModeToggle();
-    this.syncCanvasBgPresets();
   },
 
   open(){
@@ -3473,12 +3283,24 @@ Components.register('kpi', {
         ? `<span class="kpi-trend flat"><i class="fa-solid fa-minus"></i> No change</span>`
         : `<span class="kpi-trend ${trend.up ? 'up' : 'down'}"><i class="fa-solid fa-arrow-${trend.up ? 'up' : 'down'}"></i> ${trend.pct.toFixed(1)}%</span>`
       : '';
+    const hasTarget = widget.target !== undefined && widget.target !== null && widget.target > 0;
+    const progressPct = hasTarget ? Math.min(100, Math.max(0, (raw / widget.target) * 100)) : null;
+    const targetHtml = hasTarget
+      ? `<span class="kpi-target text-mute-inline">Target: ${Utils.esc(KpiEngine.formatValue(widget.target, widget.format))}</span>`
+      : '';
+    const progressHtml = hasTarget
+      ? `<div class="progress-track"><div class="progress-fill" style="width:${progressPct}%;"></div></div>`
+      : '';
     return `
       <div class="kpi-widget-body" style="--kpi-accent:${accent};">
         <div class="kpi-icon-badge"><i class="fa-solid ${Utils.esc(icon)}"></i></div>
         <div class="kpi-value">${Utils.esc(display)}</div>
         <div class="kpi-sub text-small text-mute-inline">${Utils.esc(KpiEngine.AGGS[widget.agg] || widget.agg)} of ${Utils.esc(widget.field)}</div>
-        ${trendHtml}
+        <div class="kpi-status-row">
+          ${trendHtml}
+          ${targetHtml}
+        </div>
+        ${progressHtml}
       </div>`;
   },
   configure(widget){ KpiBuilderUI.openForEdit(widget); }
@@ -3496,12 +3318,14 @@ const KpiBuilderUI = {
       const format = document.getElementById('kpi-format-select').value;
       const icon = document.getElementById('kpi-icon-select').value;
       const color = document.getElementById('kpi-color-input').value;
+      const targetRaw = document.getElementById('kpi-target-input').value;
+      const target = targetRaw === '' ? null : Number(targetRaw);
       if (!field){ UI.toast('Choose a field for this KPI.', true); return; }
       if (this.editingId){
-        Grid.updateWidget(this.editingId, { title, field, agg, format, icon, color });
+        Grid.updateWidget(this.editingId, { title, field, agg, format, icon, color, target });
         UI.toast('KPI updated.');
       } else {
-        Grid.addWidget('kpi', { size:{ w:3, h:2 }, title, field, agg, format, icon, color });
+        Grid.addWidget('kpi', { size:{ w:3, h:2 }, title, field, agg, format, icon, color, target });
         UI.toast('KPI added.');
       }
       this.editingId = null;
@@ -3522,6 +3346,7 @@ const KpiBuilderUI = {
     document.getElementById('kpi-format-select').value = widget.format || 'number';
     document.getElementById('kpi-icon-select').value = widget.icon || 'fa-gauge-high';
     document.getElementById('kpi-color-input').value = widget.color || '#7c5cff';
+    document.getElementById('kpi-target-input').value = (widget.target !== undefined && widget.target !== null) ? widget.target : '';
     document.getElementById('kpi-submit-btn').innerHTML = '<i class="fa-solid fa-check"></i> Save changes';
     this._openDrawerOnly();
   },
