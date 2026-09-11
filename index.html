@@ -697,14 +697,31 @@ main#canvas-wrap{
 .widget:hover .widget-resize-handle{ opacity:1; }
 
 /* ---- Filter widget (Part 9 functionality, Part 5 flat visual design) — a
-   compact rectangular dropdown (not the pill-shaped .glass-input used for
-   text inputs) to match Index_Reference.html's .filter-select, built from
-   the same flat tokens as the rest of the dashboard. ---- */
-.filter-widget-body{ width:100%; gap:.6rem; }
-.filter-widget-body .filter-select{
-  border-radius:var(--radius-sm); padding:.5rem .7rem; font-size:.82rem;
+   compact single-line chip row (replaces the old native <select>/listbox)
+   built from the same flat tokens as the rest of the dashboard. Values sit
+   on one row and scroll horizontally instead of growing the widget taller. ---- */
+.widget-body:has(.filter-widget-body){ padding:.55rem .7rem; align-items:stretch; justify-content:center; text-align:left; }
+.filter-widget-body{ width:100%; display:flex; align-items:center; gap:.4rem; }
+.filter-chip-row{
+  flex:1; min-width:0; display:flex; align-items:center; gap:.35rem;
+  overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; padding:.2rem .05rem;
 }
-.filter-widget-body select[multiple]{ text-align:left; min-height:110px; }
+.filter-chip-row::-webkit-scrollbar{ height:4px; }
+.filter-chip-row::-webkit-scrollbar-thumb{ background:var(--glass-border-strong); border-radius:4px; }
+.filter-chip{
+  flex:none; white-space:nowrap; border-radius:999px; border:1px solid var(--glass-border);
+  background:var(--glass-fill); color:var(--ink-mute); font-size:.72rem; font-weight:600;
+  line-height:1; padding:.34rem .65rem; cursor:pointer;
+  transition:background var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.filter-chip:hover{ border-color:var(--theme-filter); color:var(--ink); }
+.filter-chip.active{ background:var(--theme-filter); border-color:var(--theme-filter); color:#fff; }
+.filter-chip-clear{
+  flex:none; width:1.6rem; height:1.6rem; display:flex; align-items:center; justify-content:center;
+  border-radius:50%; border:1px solid var(--glass-border); background:var(--glass-fill); color:var(--ink-mute);
+  cursor:pointer; font-size:.68rem; padding:0;
+}
+.filter-chip-clear:hover{ color:var(--accent-coral); border-color:var(--accent-coral); }
 
 /* ---- KPI widget (Part 11 functionality, Part 12 flat visual design) ----
    Flat card matching Index_Reference.html's .kpi-box: small uppercase muted
@@ -3137,31 +3154,47 @@ const FilterEngine = {
 
 Components.register('filter', {
   defaultTitle: 'Filter',
+  // Compact single-line chip row (Part 9 functionality unchanged — still backed by
+  // FilterEngine.active/setSelection/clearFilter). Single-select gets a leading "All"
+  // chip that clears the selection; multi-select toggles chips independently. The row
+  // scrolls horizontally on overflow instead of growing the widget taller.
   render(widget){
     const def = FilterEngine.filters.find(f => f.id === widget.filterId);
     if (!def) return `<i class="fa-solid fa-triangle-exclamation"></i><span>This filter's column is no longer available.</span>`;
     const options = FilterEngine.optionsFor(def.field);
     const selected = FilterEngine.active[def.field] || [];
+    const optionChips = options.map(o => `<button type="button" class="filter-chip ${selected.includes(o) ? 'active' : ''}" data-value="${Utils.esc(o)}">${Utils.esc(o)}</button>`).join('');
+    const chips = def.mode === 'single'
+      ? `<button type="button" class="filter-chip ${selected.length ? '' : 'active'}" data-value="">All</button>${optionChips}`
+      : optionChips;
     return `
       <div class="filter-widget-body">
-        <select class="glass-input filter-select" ${def.mode === 'multi' ? 'multiple size="6"' : ''}>
-          ${def.mode === 'single' ? `<option value="">All ${Utils.esc(def.field)}</option>` : ''}
-          ${options.map(o => `<option value="${Utils.esc(o)}" ${selected.includes(o) ? 'selected' : ''}>${Utils.esc(o)}</option>`).join('')}
-        </select>
-        ${selected.length ? '<button type="button" class="glass-btn filter-clear-btn" style="width:100%;justify-content:center;"><i class="fa-solid fa-eraser"></i> Clear</button>' : ''}
+        <div class="filter-chip-row" role="group" aria-label="${Utils.esc(def.field)}">${chips}</div>
+        ${selected.length ? '<button type="button" class="filter-chip-clear" title="Clear selection"><i class="fa-solid fa-eraser"></i></button>' : ''}
       </div>`;
   },
   afterRender(widget, bodyEl){
     const def = FilterEngine.filters.find(f => f.id === widget.filterId);
     if (!def) return;
-    const select = bodyEl.querySelector('.filter-select');
-    if (select) select.addEventListener('change', Utils.safe(() => {
-      const values = Array.from(select.selectedOptions).map(o => o.value).filter(v => v !== '');
-      FilterEngine.setSelection(def.field, values);
-    }, 'FilterWidget.change'));
-    const clearBtn = bodyEl.querySelector('.filter-clear-btn');
+    const row = bodyEl.querySelector('.filter-chip-row');
+    if (row) row.addEventListener('click', Utils.safe((e) => {
+      const chip = e.target.closest('.filter-chip');
+      if (!chip) return;
+      const value = chip.dataset.value;
+      if (def.mode === 'single'){
+        FilterEngine.setSelection(def.field, value ? [value] : []);
+      } else {
+        const current = FilterEngine.active[def.field] || [];
+        const values = current.includes(value) ? current.filter(v => v !== value) : current.concat(value);
+        FilterEngine.setSelection(def.field, values);
+      }
+    }, 'FilterWidget.chipClick'));
+    const clearBtn = bodyEl.querySelector('.filter-chip-clear');
     if (clearBtn) clearBtn.addEventListener('click', Utils.safe(() => FilterEngine.clearFilter(def.field), 'FilterWidget.clear'));
-  }
+  },
+  // Reuses the existing admin Filters drawer (FiltersUI) instead of building a second,
+  // per-widget edit system — this is the same drawer already used to add/remove filters.
+  configure(){ FiltersUI.open(); }
 });
 
 /* ---- FiltersUI (Part 9/10) ---------------------------------------------------
@@ -3178,7 +3211,7 @@ const FiltersUI = {
       const mode = document.querySelector('input[name="filter-mode"]:checked').value;
       const result = FilterEngine.addFilter(field, mode);
       if (!result.ok){ UI.toast(result.error, true); return; }
-      Grid.addWidget('filter', { size:{ w:3, h:2 }, title:field, filterId:result.filter.id });
+      Grid.addWidget('filter', { size:{ w:3, h:1 }, title:field, filterId:result.filter.id });
       this.renderList();
       this.renderFieldOptions();
     }, 'FiltersUI.add'));
