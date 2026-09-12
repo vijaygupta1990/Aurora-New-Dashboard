@@ -3172,6 +3172,26 @@ const FilterEngine = {
     const hadLegacy = Grid.widgets.some(w => w.type === 'filter');
     if (hadLegacy){ Grid.widgets = Grid.widgets.filter(w => w.type !== 'filter'); Grid.persist(); }
     if (this.filters.length) Grid.ensureSingleton('filters-panel', { size:{ w:12, h:3 } });
+    this.syncPanelHeight();
+  },
+  // ---- Auto-fit the Filters panel's height to however many filter rows (7 per row,
+  // matching .filter-bar-grid's column count) exist, so the panel grows/shrinks with the
+  // filter count instead of a fixed widget height that clips extra rows or leaves empty
+  // space. Purely adjusts this ONE widget's height via Grid.updateWidget — never touches
+  // x/y/w, any other widget's position/size, or the individual filter control dimensions
+  // (those stay governed entirely by .filter-ctrl/.filter-select/.filter-chip-group CSS). ----
+  ROW_CAPACITY: 7,
+  syncPanelHeight(){
+    const widget = Grid.widgets.find(w => w.type === 'filters-panel');
+    if (!widget) return;
+    const rows = Math.max(1, Math.ceil(this.filters.length / this.ROW_CAPACITY));
+    // Approximate pixel footprint: widget-head + widget-body vertical padding (same shared
+    // markup/padding as the Key Metrics panel), then one filter-ctrl row (label + its .35rem
+    // gap + the fixed 2.3rem control height) per row, plus the .85rem row gap between rows.
+    const HEAD_PX = 47, BODY_PAD_PX = 34, ROW_PX = 57, ROW_GAP_PX = 13.6;
+    const desiredPx = HEAD_PX + BODY_PAD_PX + rows * ROW_PX + (rows - 1) * ROW_GAP_PX;
+    const h = Math.max(Grid.MIN_H, Math.ceil((desiredPx + Grid.GAP) / (Grid.ROW_H + Grid.GAP)));
+    if (widget.h !== h) Grid.updateWidget(widget.id, { h });
   },
   restore(){
     try { const v = JSON.parse(localStorage.getItem(this.STORAGE_KEY) || 'null'); return Array.isArray(v) ? v : []; }
@@ -3184,6 +3204,7 @@ const FilterEngine = {
     const filter = { id:Utils.uid('filter'), field, mode: mode === 'multi' ? 'multi' : 'single' };
     this.filters.push(filter);
     this.persist();
+    this.syncPanelHeight();
     return { ok:true, filter };
   },
   // Edits an existing filter definition in place (title/field/mode/option-order) — used by the
@@ -3216,6 +3237,7 @@ const FilterEngine = {
     delete this.active[field];
     this.filters = this.filters.filter(x => x.id !== f.id);
     this.persist();
+    this.syncPanelHeight();
   },
 
   setSelection(field, values){
