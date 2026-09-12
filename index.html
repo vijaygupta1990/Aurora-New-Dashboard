@@ -4017,7 +4017,7 @@ const ChartEngine = {
           titleColor:ink, bodyColor:mute, padding:10, cornerRadius:10, displayColors:true
         }
       },
-      scales: (this.CHART_META[cfg.type] || {}).family === 'pie' || (this.CHART_META[cfg.type] || {}).family === 'radar' ? {} : {
+      scales: (this.CHART_META[cfg.chartType] || {}).family === 'pie' || (this.CHART_META[cfg.chartType] || {}).family === 'radar' ? {} : {
         x:{ grid:{ color:grid, display:cfg.grid !== false }, ticks:{ color:mute, font:{ size:11 } } },
         y:{ grid:{ color:grid, display:cfg.grid !== false }, ticks:{ color:mute, font:{ size:11 } } }
       }
@@ -4026,7 +4026,7 @@ const ChartEngine = {
 
   render(canvas, cfg, existingInstance){
     if (existingInstance) existingInstance.destroy();
-    const meta = this.CHART_META[cfg.type] || this.CHART_META.bar;
+    const meta = this.CHART_META[cfg.chartType] || this.CHART_META.bar;
     const rows = FilterEngine.getFilteredRows();
 
     if (meta.family === 'xy'){
@@ -4141,7 +4141,7 @@ const ChartBuilderUI = {
       const sizeField = document.getElementById('chart-size-select').value || null;
       if (!xField || !yField){ UI.toast('Choose both X and Y fields.', true); return; }
       const fields = {
-        title, type, xField, yField, seriesField, sizeField,
+        title, chartType:type, xField, yField, seriesField, sizeField,
         agg: document.getElementById('chart-agg-select').value,
         dateGroup: document.getElementById('chart-dategroup-select').value || null,
         xOrder: this.xOrder.length ? [...this.xOrder] : null,
@@ -4213,7 +4213,7 @@ const ChartBuilderUI = {
     this.editingId = widget.id;
     this.renderFieldOptions();
     document.getElementById('chart-title-input').value = widget.title || '';
-    document.getElementById('chart-type-select').value = widget.type || 'bar';
+    document.getElementById('chart-type-select').value = widget.chartType || 'bar';
     this.applyFieldVisibility();
     document.getElementById('chart-x-select').value = widget.xField || '';
     this.xOrder = widget.xOrder ? [...widget.xOrder] : [];
@@ -4509,6 +4509,7 @@ const Grid = {
 
   init(){
     this.widgets = this.restore();
+    this.migrateLegacyChartTypes();
     this.render();
     document.getElementById('add-widget-btn').addEventListener('click', Utils.safe(() => this.addWidget(), 'Grid.addWidget'));
     // Window resize fires in a rapid burst while a user drags to resize a browser window — a
@@ -4528,6 +4529,26 @@ const Grid = {
     // stale selections — into exactly one real render instead of two back-to-back full rebuilds.
     EventBus.on('data:calculated', () => this.scheduleRender());
     EventBus.on('filters:changed', () => this.scheduleRender());
+  },
+  // One-time repair for a naming collision bug: a chart widget's Chart.js type (bar/line/
+  // pie/...) used to be stored under the SAME `type` key Grid uses to find each widget's
+  // Components definition. Grid.addWidget('chart', {..., type:'bar'}) / Grid.updateWidget(id,
+  // {type:'bar'}) then silently overwrote the widget's own `type` from 'chart' to 'bar', so
+  // Components.get('bar') found nothing and every chart fell back to the placeholder card
+  // ("Widget content arrives once its part is built") even though xField/yField/data were all
+  // saved correctly. The chart type now lives in its own `chartType` field (see
+  // ChartBuilderUI.submit/openForEdit and ChartEngine) — this restores any already-saved
+  // widget that has the old, corrupted `type` value.
+  migrateLegacyChartTypes(){
+    let changed = false;
+    this.widgets.forEach(w => {
+      if (ChartEngine.CHART_META[w.type] && !Components.get(w.type)){
+        if (!w.chartType) w.chartType = w.type;
+        w.type = 'chart';
+        changed = true;
+      }
+    });
+    if (changed) this.persist();
   },
   _renderScheduled: false,
   scheduleRender(){
