@@ -2023,6 +2023,21 @@ const ThemeUI = {
       UI.toast('Theme reset to default.');
     }, 'ThemeUI.reset'));
     EventBus.on('theme:changed', Utils.safe(theme => this.syncInputs(theme), 'ThemeUI.sync'));
+    EventBus.on('theme:changed', Utils.safe(() => this.refreshCharts(), 'ThemeUI.refreshCharts'));
+  },
+
+  // Chart.js canvases don't pick up CSS variable changes on their own — the ink/mute colours
+  // are read once, when a chart is built, and painted onto the canvas as plain pixels. Re-run
+  // each existing chart through ChartEngine.render() so it re-reads --ink/--ink-mute for the
+  // NEW mode and repaints with the correct colour, instead of leaving the old mode's colour on.
+  refreshCharts(){
+    if (!App.chartInstances) return;
+    Object.keys(App.chartInstances).forEach(id => {
+      const instance = App.chartInstances[id];
+      const widget = Grid.widgets.find(w => w.id === id);
+      if (!instance || !widget) return;
+      App.chartInstances[id] = ChartEngine.render(instance.canvas, widget, instance);
+    });
   },
 
   renderModeToggle(){
@@ -4011,7 +4026,6 @@ const ChartEngine = {
   // so data stays readable, per "do not overuse glow".
   baseOptions(cfg, extra){
     const ink = getComputedStyle(document.body).getPropertyValue('--ink').trim() || '#0f172a';
-    const mute = getComputedStyle(document.body).getPropertyValue('--ink-mute').trim() || '#9aa5c7';
     const grid = 'rgba(255,255,255,.08)';
     return Object.assign({
       responsive:true, maintainAspectRatio:false, animation:{ duration:280 },
@@ -4019,7 +4033,7 @@ const ChartEngine = {
         legend:{ display: cfg.legend !== false, position:'bottom', labels:{ color:ink, boxWidth:10, font:{ size:11, weight:'800' } } },
         tooltip:{
           backgroundColor:'rgba(14,18,32,.92)', borderColor:'rgba(255,255,255,.14)', borderWidth:1,
-          titleColor:ink, bodyColor:mute, padding:10, cornerRadius:10, displayColors:true
+          titleColor:'#f8fafc', bodyColor:'#cbd5e1', padding:10, cornerRadius:10, displayColors:true
         }
       },
       scales: (this.CHART_META[cfg.chartType] || {}).family === 'pie' || (this.CHART_META[cfg.chartType] || {}).family === 'radar' ? {} : {
