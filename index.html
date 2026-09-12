@@ -1563,6 +1563,9 @@ main#canvas-wrap{
       <input class="glass-input" type="text" id="table-title-input" placeholder="e.g. Transactions" autocomplete="off">
     </div>
 
+    <label class="data-field-label">Groups <span class="text-small" style="font-weight:400;">(optional — Salesforce-style grouped rows, drag to set hierarchy)</span></label>
+    <div class="table-column-picker" id="table-group-picker"></div>
+
     <label class="data-field-label">Columns</label>
     <div class="table-column-picker" id="table-column-picker"></div>
 
@@ -4296,6 +4299,22 @@ const TableEngine = {
   FORMATS: { text:'Text', number:'Number', currency:'Currency (\u20b9)', percentage:'Percentage', decimal:'Decimal (2dp)', date:'Date' },
   AGGS: { none:'\u2014', sum:'Sum', avg:'Average', count:'Count', min:'Minimum', max:'Maximum' },
   PAGE_SIZE: 10,
+  // Record Count (Part 3) — a system measure, never a real sheet/calc field, so it can never be
+  // picked in the Columns picker and therefore can never end up duplicated or reordered by the
+  // user. It's computed fresh on every render and always appended after the real measure
+  // columns, which is what makes "always last" and "auto re-appends if reordered" automatic
+  // rather than something that needs separate enforcement.
+  RECORD_COUNT_FIELD: '__record_count__',
+  RECORD_COUNT_LABEL: 'Record Count',
+  // Every column's effective agg/format/heatmap for rendering — Record Count's are fixed
+  // (count aggregation = number of underlying records, which sums correctly at every group
+  // level since it's just rows.length of that node's full row list; Number format; no heatmap),
+  // everything else falls back to the user's own columnSettings exactly as before.
+  colSettings(col, settings){
+    if (col === this.RECORD_COUNT_FIELD) return { agg:'count', format:'number', heatmap:false };
+    return (settings || {})[col] || {};
+  },
+  colLabel(col){ return col === this.RECORD_COUNT_FIELD ? this.RECORD_COUNT_LABEL : col; },
 
   formatCell(value, format){
     if (value === null || value === undefined || value === '') return '\u2014';
@@ -4336,18 +4355,63 @@ const TableEngine = {
     const norm = (value - range.min) / (range.max - range.min);
     const alpha = 0.12 + norm * 0.38;
     return `background:color-mix(in srgb, ${accent} ${Math.round(alpha*100)}%, transparent);`;
-  }
+  },
+
+  // ---- Grouping (Part 1) --------------------------------------------------------
+  // Recursively buckets rows by each group field in turn (Project, then Tower, ...), Salesforce-
+  // style. Each node carries the full set of underlying rows for its bucket, so any aggregation
+  // (grand total, per-group subtotal, or a single leaf value) is just DataEngine.aggregate over
+  // node.rows — one calculation path for every level, reused by both group headers and leaves.
+  buildTree(rows, groupFields, level){
+    level = level || 0;
+    const field = groupFields[level];
+    const map = new Map();
+    rows.forEach(r => {
+      const key = r[field] ?? '';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(r);
+    });
+    return Array.from(map.entries()).map(([key, groupRows]) => ({
+      key, level, rows: groupRows,
+      children: level + 1 < groupFields.length ? this.buildTree(groupRows, groupFields, level + 1) : null
+    }));
+  },
+
+  // Renders one group node (and its children) as a run of <tr> markup. The group value is only
+  // ever printed on its own header row — never repeated down onto child/leaf rows — since each
+  // level nests as a single indented row rather than a per-row parent-label column.
+  renderGroupNode(node, measureCols, settings, ranges, accent){
+    const isLeaf = !node.children;
+    const cells = measureCols.map(c => {
+      const cfg = this.colSettings(c, settings);
+      const agg = cfg.agg || 'none';
+      if (agg === 'none') return '<td></td>';
+      const val = this.aggregateFor(node.rows, c, agg);
+      const style = cfg.heatmap ? this.heatStyle(val, ranges[c], accent) : '';
+      return `<td style="${style}">${Utils.esc(this.formatCell(val, cfg.format))}</td>`;
+    }).join('');
+    const label = node.key === '' || node.key === null || node.key === undefined ? '\u2014' : node.key;
+    let html = `<tr class="table-row group-row${isLeaf ? ' group-row-leaf' : ''}">` +
+      `<td style="padding-left:${0.7 + node.level * 1.15}rem;${isLeaf ? '' : 'font-weight:600;'}">${Utils.esc(String(label))}</td>${cells}</tr>`;
+    if (node.children) node.children.forEach(child => { html += this.renderGroupNode(child, measureCols, settings, ranges, accent); });
+    return html;
+  },
+  // Thin wrapper around DataEngine.aggregate kept here so Part 2 (Record Count / multi-measure
+  // rework) has a single seam in TableEngine to extend without touching renderGroupNode again.
+  aggregateFor(rows, field, agg){ return DataEngine.aggregate(rows, field, agg); }
 };
 
 Components.register('table', {
   defaultTitle: 'Table',
   render(widget){
-    if (!widget.columns || !widget.columns.length) return `<i class="fa-solid fa-table"></i><span>This table has no columns configured.</span>`;
+    // A table with Groups configured is still valid with zero measure columns (Part 2) — it
+    // just shows the group hierarchy with no data columns until measures/Record Count are added.
+    if ((!widget.columns || !widget.columns.length) && !(widget.groups && widget.groups.length)) return `<i class="fa-solid fa-table"></i><span>This table has no columns configured.</span>`;
     return `<div class="table-widget-body"></div>`;
   },
   afterRender(widget, bodyEl){
     const wrap = bodyEl.querySelector('.table-widget-body');
-    if (!wrap || !widget.columns || !widget.columns.length) return;
+    if (!wrap || ((!widget.columns || !widget.columns.length) && !(widget.groups && widget.groups.length))) return;
     widget._page = widget._page || 1;
     TableEngine._draw(widget, wrap);
   },
@@ -4357,20 +4421,49 @@ Components.register('table', {
 // Grid to rebuild the whole canvas.
 TableEngine._draw = function(widget, wrap){
   const rows = this.visibleRows(widget);
-  const totalPages = widget.page ? Math.max(1, Math.ceil(rows.length / this.PAGE_SIZE)) : 1;
+  // Grouped mode (Part 1): group fields are excluded from the flat measure columns since they're
+  // shown as the nested hierarchy label instead. Paging is disabled while grouped — a group's
+  // rows must never be split across pages — sorting/custom order refinements land in Part 12.
+  const groups = widget.groups || [];
+  const grouped = groups.length > 0;
+  // Defensive: widget.columns can never actually contain the reserved Record Count key (it's
+  // never offered in the Columns picker), but excluding it here costs nothing and guarantees
+  // "no duplicates" even if a config were ever hand-edited.
+  const measureCols = (grouped ? widget.columns.filter(c => !groups.includes(c)) : widget.columns).filter(c => c !== this.RECORD_COUNT_FIELD);
+  // Record Count (Part 3): automatic system measure for grouped/summary tables only, always
+  // appended after the real measures. It's never part of widget.columns/columnOrder, so any
+  // reordering the user does to their own columns can never move it — it's simply re-added at
+  // the end on every render, which is what "auto re-appends to last" means in practice here.
+  const renderCols = grouped ? [...measureCols, this.RECORD_COUNT_FIELD] : measureCols;
+  const totalPages = (widget.page && !grouped) ? Math.max(1, Math.ceil(rows.length / this.PAGE_SIZE)) : 1;
   widget._page = Math.min(widget._page || 1, totalPages);
-  const pageRows = widget.page ? rows.slice((widget._page-1)*this.PAGE_SIZE, widget._page*this.PAGE_SIZE) : rows;
+  const pageRows = (widget.page && !grouped) ? rows.slice((widget._page-1)*this.PAGE_SIZE, widget._page*this.PAGE_SIZE) : rows;
   const settings = widget.columnSettings || {};
   const accent = widget.color && Utils.isHex(widget.color) ? widget.color : 'var(--theme-table)';
   const ranges = {};
-  widget.columns.forEach(c => { if ((settings[c]||{}).heatmap) ranges[c] = this.heatRange(rows, c); });
+  renderCols.forEach(c => { if (this.colSettings(c, settings).heatmap) ranges[c] = this.heatRange(rows, c); });
 
-  const totalsRow = widget.showTotals ? widget.columns.map(c => {
-    const agg = (settings[c]||{}).agg || 'none';
+  const totalsRow = widget.showTotals ? renderCols.map(c => {
+    const cfg = this.colSettings(c, settings);
+    const agg = cfg.agg || 'none';
     if (agg === 'none') return '<th></th>';
     const val = DataEngine.aggregate(rows, c, agg);
-    return `<th>${Utils.esc(this.formatCell(val, (settings[c]||{}).format))}</th>`;
+    return `<th>${Utils.esc(this.formatCell(val, cfg.format))}</th>`;
   }).join('') : '';
+
+  const headCells = grouped
+    ? `<th>${Utils.esc(groups.join(' / '))}</th>${renderCols.map(c => `<th>${Utils.esc(this.colLabel(c))}</th>`).join('')}`
+    : widget.columns.map(c => `<th data-col="${Utils.esc(c)}" class="${widget.sort ? 'sortable' : ''}">${Utils.esc(c)} ${widget.sort && widget._sortCol === c ? `<i class="fa-solid fa-caret-${widget._sortDir === 'desc' ? 'down' : 'up'}"></i>` : ''}</th>`).join('');
+
+  const bodyHtml = grouped
+    ? (rows.length ? this.buildTree(pageRows, groups).map(node => this.renderGroupNode(node, renderCols, settings, ranges, accent)).join('') : `<tr><td colspan="${renderCols.length + 1}" class="table-empty">No rows match the current filters.</td></tr>`)
+    : (pageRows.length ? pageRows.map((r,ri) => `
+            <tr class="table-row" data-ri="${ri}">
+              ${widget.columns.map(c => {
+                const style = (settings[c]||{}).heatmap ? this.heatStyle(DataEngine.toNumber(r[c]), ranges[c], accent) : '';
+                return `<td style="${style}">${Utils.esc(this.formatCell(r[c], (settings[c]||{}).format))}</td>`;
+              }).join('')}
+            </tr>`).join('') : `<tr><td colspan="${widget.columns.length}" class="table-empty">No rows match the current filters.</td></tr>`);
 
   wrap.innerHTML = `
     <div class="table-toolbar-row">
@@ -4378,20 +4471,14 @@ TableEngine._draw = function(widget, wrap){
     </div>
     <div class="table-scroll" style="--table-accent:${accent};">
       <table class="crystal-table">
-        <thead><tr>${widget.columns.map(c => `<th data-col="${Utils.esc(c)}" class="${widget.sort ? 'sortable' : ''}">${Utils.esc(c)} ${widget.sort && widget._sortCol === c ? `<i class="fa-solid fa-caret-${widget._sortDir === 'desc' ? 'down' : 'up'}"></i>` : ''}</th>`).join('')}</tr></thead>
+        <thead><tr>${headCells}</tr></thead>
         <tbody>
-          ${pageRows.length ? pageRows.map((r,ri) => `
-            <tr class="table-row" data-ri="${ri}">
-              ${widget.columns.map(c => {
-                const style = (settings[c]||{}).heatmap ? this.heatStyle(DataEngine.toNumber(r[c]), ranges[c], accent) : '';
-                return `<td style="${style}">${Utils.esc(this.formatCell(r[c], (settings[c]||{}).format))}</td>`;
-              }).join('')}
-            </tr>`).join('') : `<tr><td colspan="${widget.columns.length}" class="table-empty">No rows match the current filters.</td></tr>`}
+          ${bodyHtml}
         </tbody>
         ${totalsRow ? `<tfoot><tr class="totals-row"><th class="totals-label">Total</th>${totalsRow.replace('<th></th>','')}</tr></tfoot>` : ''}
       </table>
     </div>
-    ${widget.page && totalPages > 1 ? `
+    ${widget.page && !grouped && totalPages > 1 ? `
     <div class="table-pager">
       <button class="glass-btn icon-only table-prev" ${widget._page<=1?'disabled':''}><i class="fa-solid fa-chevron-left"></i></button>
       <span class="text-small">Page ${widget._page} of ${totalPages}</span>
@@ -4400,7 +4487,7 @@ TableEngine._draw = function(widget, wrap){
 
   const searchInput = wrap.querySelector('.table-search-input');
   if (searchInput) searchInput.addEventListener('input', Utils.safe(() => { widget._searchTerm = searchInput.value; widget._page = 1; this._draw(widget, wrap); }, 'Table.search'));
-  if (widget.sort) wrap.querySelectorAll('th.sortable').forEach(th => th.addEventListener('click', Utils.safe(() => {
+  if (widget.sort && !grouped) wrap.querySelectorAll('th.sortable').forEach(th => th.addEventListener('click', Utils.safe(() => {
     const col = th.dataset.col;
     widget._sortDir = (widget._sortCol === col && widget._sortDir === 'asc') ? 'desc' : 'asc';
     widget._sortCol = col;
@@ -4418,13 +4505,21 @@ TableEngine._draw = function(widget, wrap){
 /* ---- TableBuilderUI (Part 17/18) ----------------------------------------------- */
 const TableBuilderUI = {
   columnOrder: [],
+  groupOrder: [],
   editingId: null,
   init(){
     document.getElementById('table-close').addEventListener('click', () => this.close());
     document.getElementById('table-form').addEventListener('submit', Utils.safe(e => {
       e.preventDefault();
       const columns = this.columnOrder.filter(c => document.querySelector(`.table-col-check[data-col="${CSS.escape(c)}"]`)?.checked);
-      if (!columns.length){ UI.toast('Choose at least one column.', true); return; }
+      // Group fields (Part 1): ordered list of category fields for Salesforce-style grouped
+      // rows. A column also used as a group is excluded from the flat measure display at
+      // render time (TableEngine._draw) rather than here, so nothing else about the existing
+      // Columns picker needs to change.
+      const groups = this.groupOrder.filter(c => document.querySelector(`.table-group-check[data-col="${CSS.escape(c)}"]`)?.checked);
+      // A table with Groups set is valid with zero measure columns (Part 2) — measures are
+      // optional on top of the hierarchy, so only block saving when there's neither.
+      if (!columns.length && !groups.length){ UI.toast('Choose at least one column or group.', true); return; }
       const columnSettings = {};
       columns.forEach(c => {
         columnSettings[c] = {
@@ -4435,7 +4530,7 @@ const TableBuilderUI = {
       });
       const title = document.getElementById('table-title-input').value.trim() || 'Table';
       const fields = {
-        title, columns, columnSettings,
+        title, columns, columnSettings, groups,
         sort: document.getElementById('table-sort-check').checked,
         search: document.getElementById('table-search-check').checked,
         page: document.getElementById('table-page-check').checked,
@@ -4452,8 +4547,28 @@ const TableBuilderUI = {
       this.editingId = null;
       document.getElementById('table-submit-btn').innerHTML = '<i class="fa-solid fa-plus"></i> Add Table';
     }, 'TableBuilderUI.submit'));
-    EventBus.on('data:calculated', () => this.renderColumnPicker());
+    EventBus.on('data:calculated', () => { this.renderColumnPicker(); this.renderGroupPicker(); });
     this.renderColumnPicker();
+    this.renderGroupPicker();
+  },
+  // Same drag-reorderable-checklist pattern as renderColumnPicker below, reused as-is (just
+  // checkbox + label, no format/agg/heatmap selects) so no new CSS is needed for Part 1.
+  renderGroupPicker(){
+    const wrap = document.getElementById('table-group-picker');
+    const cols = CalcFields.columns;
+    this.groupOrder = this.groupOrder.filter(c => cols.some(x => x.name === c));
+    cols.forEach(c => { if (!this.groupOrder.includes(c.name)) this.groupOrder.push(c.name); });
+    wrap.innerHTML = this.groupOrder.map(name => `
+      <div class="table-col-row" data-col="${Utils.esc(name)}" draggable="true">
+        <i class="fa-solid fa-grip-vertical drag-grip"></i>
+        <label class="text-small"><input type="checkbox" class="table-group-check" data-col="${Utils.esc(name)}"> ${Utils.esc(name)}</label>
+      </div>`).join('');
+    let dragged = null;
+    wrap.querySelectorAll('.table-col-row').forEach(row => {
+      row.addEventListener('dragstart', e => { if (e.target.closest('input,select')){ e.preventDefault(); return; } dragged = row; row.classList.add('dragging'); });
+      row.addEventListener('dragend', () => { row.classList.remove('dragging'); this.groupOrder = Array.from(wrap.children).map(r => r.dataset.col); });
+      row.addEventListener('dragover', e => { e.preventDefault(); if (!dragged || dragged === row) return; const rect = row.getBoundingClientRect(); wrap.insertBefore(dragged, (e.clientY - rect.top) > rect.height/2 ? row.nextSibling : row); });
+    });
   },
   renderColumnPicker(){
     const wrap = document.getElementById('table-column-picker');
@@ -4490,6 +4605,15 @@ const TableBuilderUI = {
     // Put this table's own columns first, in their saved order, so editing shows the familiar layout.
     this.columnOrder = [...widget.columns, ...this.columnOrder.filter(c => !widget.columns.includes(c))];
     this.renderColumnPicker();
+    // Same for saved group hierarchy order (Part 1). Older widgets have no .groups — defaults
+    // to [] safely (backward compatible: renders exactly as the old flat table did).
+    const savedGroups = widget.groups || [];
+    this.groupOrder = [...savedGroups, ...this.groupOrder.filter(c => !savedGroups.includes(c))];
+    this.renderGroupPicker();
+    savedGroups.forEach(g => {
+      const check = document.querySelector(`.table-group-check[data-col="${CSS.escape(g)}"]`);
+      if (check) check.checked = true;
+    });
     document.getElementById('table-title-input').value = widget.title || '';
     widget.columns.forEach(c => {
       const check = document.querySelector(`.table-col-check[data-col="${CSS.escape(c)}"]`);
@@ -4518,6 +4642,7 @@ const TableBuilderUI = {
     document.getElementById('table-form').reset();
     document.getElementById('table-submit-btn').innerHTML = '<i class="fa-solid fa-plus"></i> Add Table';
     this.renderColumnPicker();
+    this.renderGroupPicker();
     document.getElementById('table-drawer').classList.add('open');
     document.getElementById('table-drawer').setAttribute('aria-hidden', 'false');
     document.getElementById('drawer-backdrop').classList.add('open');
