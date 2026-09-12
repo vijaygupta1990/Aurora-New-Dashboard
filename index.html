@@ -765,6 +765,25 @@ main#canvas-wrap{
 @media (max-width:1100px){ .kpi-row-grid{ grid-template-columns:repeat(3, minmax(0, 1fr)); } }
 @media (max-width:820px){ .kpi-row-grid{ grid-template-columns:repeat(2, minmax(0, 1fr)); } }
 @media (max-width:480px){ .kpi-row-grid{ grid-template-columns:1fr; } }
+/* Global Actual/Short number-display toggle, rendered in the Key Metrics widget-head next to
+   the title (before the edit/remove buttons) — a small segmented control matching the
+   dashboard's existing pill/chip styling, sized to sit inside the header without changing its
+   height. flex:none so it keeps its size while .widget-title (flex:1) truncates first if the
+   header gets tight, e.g. on narrow phones. */
+.kpi-display-toggle{
+  display:flex; align-items:center; flex:none; gap:0; overflow:hidden;
+  border:1px solid var(--glass-border); border-radius:999px; background:var(--glass-fill);
+}
+.kpi-display-toggle-btn{
+  border:none; background:transparent; color:var(--ink-mute); cursor:pointer; white-space:nowrap;
+  font-size:.68rem; font-weight:700; letter-spacing:.02em; padding:.32rem .65rem;
+  transition:background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.kpi-display-toggle-btn:hover{ color:var(--ink); }
+.kpi-display-toggle-btn.active{ background:var(--theme-kpi); color:#fff; }
+@media (max-width:480px){
+  .kpi-display-toggle-btn{ font-size:.62rem; padding:.28rem .5rem; }
+}
 .kpi-card{
   position:relative; min-width:0; border:1px solid var(--glass-border); background:var(--glass-fill);
   padding:1rem 1.1rem 1rem 1.3rem; min-height:108px; overflow:hidden;
@@ -1391,11 +1410,6 @@ main#canvas-wrap{
       <option value="currency">Currency (₹)</option>
       <option value="percentage">Percentage</option>
       <option value="decimal">Decimal (2dp)</option>
-    </select>
-    <label class="data-field-label" for="kpi-style-select">Display</label>
-    <select class="glass-input data-select" id="kpi-style-select">
-      <option value="actual">Actual Number</option>
-      <option value="short">Short Number (e.g. ₹1.25 Cr)</option>
     </select>
     <div class="kpi-icon-color-row">
       <div style="flex:1;">
@@ -3574,9 +3588,16 @@ const KpiEngine = {
   AGGS: { sum:'Sum', avg:'Average', count:'Count', min:'Minimum', max:'Maximum' },
   ICONS: ['fa-sack-dollar','fa-chart-line','fa-users','fa-cart-shopping','fa-percent','fa-box','fa-clock','fa-star','fa-truck','fa-bullseye','fa-arrow-trend-up','fa-gauge-high'],
   kpis: [], // [{ id, title, field, agg, format, icon, color, target }]
+  // Global Actual/Short display mode for every KPI card in the Key Metrics panel — replaces
+  // the old per-KPI numberStyle field (there is now exactly one source of truth for this,
+  // set from the toggle in the panel's header). 'actual' matches the previous per-KPI default
+  // (config.numberStyle || 'actual'), so an existing dashboard's look doesn't change on upgrade.
+  displayMode: 'actual',
 
   init(){
-    this.kpis = this.restore();
+    const restored = this.restore();
+    this.kpis = restored.kpis;
+    this.displayMode = restored.displayMode;
     // One-time migration: older saves stored each KPI as its own Grid widget
     // (type:'kpi'). Pull their config into this list and drop those widgets —
     // ensureSingleton() (below) then creates the single kpis-panel that
@@ -3591,11 +3612,27 @@ const KpiEngine = {
     if (this.kpis.length) Grid.ensureSingleton('kpis-panel', { size:{ w:12, h:3 } });
     this.syncPanelHeight();
   },
+  // Backward-compatible with the old save format (a bare KPI array, no global display mode
+  // yet) as well as the new { kpis, displayMode } shape.
   restore(){
-    try { const v = JSON.parse(localStorage.getItem(this.STORAGE_KEY) || 'null'); return Array.isArray(v) ? v : []; }
-    catch(err){ ErrorHandler.capture(err, 'KpiEngine.restore'); return []; }
+    try {
+      const v = JSON.parse(localStorage.getItem(this.STORAGE_KEY) || 'null');
+      if (Array.isArray(v)) return { kpis:v, displayMode:'actual' };
+      if (v && Array.isArray(v.kpis)) return { kpis:v.kpis, displayMode: v.displayMode === 'short' ? 'short' : 'actual' };
+      return { kpis:[], displayMode:'actual' };
+    } catch(err){ ErrorHandler.capture(err, 'KpiEngine.restore'); return { kpis:[], displayMode:'actual' }; }
   },
-  persist(){ try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.kpis)); } catch(err){ ErrorHandler.capture(err, 'KpiEngine.persist'); } },
+  persist(){ try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify({ kpis:this.kpis, displayMode:this.displayMode })); } catch(err){ ErrorHandler.capture(err, 'KpiEngine.persist'); } },
+
+  // Global toggle (Actual Number / Short Number) shown in the Key Metrics panel header —
+  // applies to every KPI card immediately, without touching any KPI's underlying calculation.
+  setDisplayMode(mode){
+    mode = mode === 'short' ? 'short' : 'actual';
+    if (this.displayMode === mode) return;
+    this.displayMode = mode;
+    this.persist();
+    Grid.render();
+  },
 
   addKpi(config){ const kpi = Object.assign({ id:Utils.uid('kpi') }, config); this.kpis.push(kpi); this.persist(); this.syncPanelHeight(); return kpi; },
   updateKpi(id, patch){ const kpi = this.kpis.find(k => k.id === id); if (!kpi) return; Object.assign(kpi, patch); this.persist(); },
@@ -3655,7 +3692,7 @@ const KpiEngine = {
     const rows = FilterEngine.getFilteredRows();
     const raw = DataEngine.aggregate(rows, config.field, config.agg);
     const baseline = DataEngine.aggregate(FilterEngine.baseRows(), config.field, config.agg);
-    return { raw, display:this.formatValue(raw, config.format, config.numberStyle), baseline, baselineDisplay:this.formatValue(baseline, config.format, config.numberStyle) };
+    return { raw, display:this.formatValue(raw, config.format, this.displayMode), baseline, baselineDisplay:this.formatValue(baseline, config.format, this.displayMode) };
   },
   // Trend vs the unfiltered total: no active filters (or a baseline of zero) reads as
   // "Stable"; otherwise shows how far the filtered figure sits above/below the total.
@@ -3680,6 +3717,21 @@ Components.register('kpis-panel', {
     if (!grid) return;
     KpiEngine.kpis.forEach(config => grid.appendChild(KpiBuilderUI.buildCard(config)));
   },
+  // Global Actual/Short display toggle, rendered in the Key Metrics widget-head itself (next
+  // to the title, before the edit/remove buttons) so it applies to every KPI card at once
+  // instead of living inside each KPI's own edit form.
+  headerExtra(){
+    const mode = KpiEngine.displayMode;
+    return `<div class="kpi-display-toggle admin-only" role="group" aria-label="KPI number display">
+      <button type="button" class="kpi-display-toggle-btn${mode === 'actual' ? ' active' : ''}" data-kpi-display="actual">Actual Number</button>
+      <button type="button" class="kpi-display-toggle-btn${mode === 'short' ? ' active' : ''}" data-kpi-display="short">Short Number</button>
+    </div>`;
+  },
+  afterHeadRender(widget, headEl){
+    headEl.querySelectorAll('[data-kpi-display]').forEach(btn => {
+      btn.addEventListener('click', Utils.safe(() => KpiEngine.setDisplayMode(btn.dataset.kpiDisplay), 'KpiEngine.setDisplayMode'));
+    });
+  },
   configure(){ KpiBuilderUI.open(); }
 });
 
@@ -3693,7 +3745,6 @@ const KpiBuilderUI = {
       const field = document.getElementById('kpi-field-select').value;
       const agg = document.getElementById('kpi-agg-select').value;
       const format = document.getElementById('kpi-format-select').value;
-      const numberStyle = document.getElementById('kpi-style-select').value;
       const icon = document.getElementById('kpi-icon-select').value;
       const color = document.getElementById('kpi-color-input').value;
       const radius = document.getElementById('kpi-radius-select').value;
@@ -3702,10 +3753,10 @@ const KpiBuilderUI = {
       const target = targetRaw === '' ? null : Number(targetRaw);
       if (!field){ UI.toast('Choose a field for this KPI.', true); return; }
       if (this.editingId){
-        KpiEngine.updateKpi(this.editingId, { title, field, agg, format, numberStyle, icon, color, radius, shadow, target });
+        KpiEngine.updateKpi(this.editingId, { title, field, agg, format, icon, color, radius, shadow, target });
         UI.toast('KPI updated.');
       } else {
-        KpiEngine.addKpi({ title, field, agg, format, numberStyle, icon, color, radius, shadow, target });
+        KpiEngine.addKpi({ title, field, agg, format, icon, color, radius, shadow, target });
         Grid.ensureSingleton('kpis-panel', { size:{ w:12, h:3 } });
         UI.toast('KPI added to the Key Metrics panel.');
       }
@@ -3733,7 +3784,7 @@ const KpiBuilderUI = {
     const hasTarget = config.target !== undefined && config.target !== null && config.target > 0;
     const progressPct = hasTarget ? Math.min(100, Math.max(0, (raw / config.target) * 100)) : null;
     const targetHtml = hasTarget
-      ? `<span class="kpi-target text-mute-inline">Target: ${Utils.esc(KpiEngine.formatValue(config.target, config.format, config.numberStyle))}</span>`
+      ? `<span class="kpi-target text-mute-inline">Target: ${Utils.esc(KpiEngine.formatValue(config.target, config.format, KpiEngine.displayMode))}</span>`
       : '';
     const progressHtml = hasTarget
       ? `<div class="progress-track"><div class="progress-fill" style="width:${progressPct}%;"></div></div>`
@@ -3774,7 +3825,6 @@ const KpiBuilderUI = {
     document.getElementById('kpi-field-select').value = config.field || '';
     document.getElementById('kpi-agg-select').value = config.agg || 'sum';
     document.getElementById('kpi-format-select').value = config.format || 'number';
-    document.getElementById('kpi-style-select').value = config.numberStyle || 'actual';
     document.getElementById('kpi-icon-select').value = config.icon || 'fa-gauge-high';
     document.getElementById('kpi-color-input').value = config.color || '#7c5cff';
     document.getElementById('kpi-radius-select').value = config.radius || 'soft';
@@ -4619,6 +4669,7 @@ const Grid = {
       <div class="widget-head">
         <span class="widget-drag-handle admin-only" title="Drag to move"><i class="fa-solid fa-grip-vertical"></i></span>
         <span class="widget-title">${Utils.esc(widget.title)}</span>
+        ${typeof def.headerExtra === 'function' ? def.headerExtra(widget) : ''}
         ${typeof def.configure === 'function' ? '<button class="widget-edit admin-only" title="Edit widget"><i class="fa-solid fa-pen"></i></button>' : ''}
         <button class="widget-remove admin-only" title="Remove widget"><i class="fa-solid fa-xmark"></i></button>
       </div>
@@ -4631,6 +4682,7 @@ const Grid = {
     if (editBtn) editBtn.addEventListener('click', Utils.safe(() => { if (State.get('role') === 'admin') def.configure(widget); }, 'Grid.editWidget'));
     el.querySelector('.widget-drag-handle').addEventListener('pointerdown', Utils.safe(e => this.startDrag(e, widget, el), 'Grid.startDrag'));
     el.querySelector('.widget-resize-handle').addEventListener('pointerdown', Utils.safe(e => this.startResize(e, widget, el), 'Grid.startResize'));
+    if (typeof def.afterHeadRender === 'function') Utils.safe(() => def.afterHeadRender(widget, el.querySelector('.widget-head')), 'Components.afterHeadRender:' + widget.type)();
     if (typeof def.afterRender === 'function') Utils.safe(() => def.afterRender(widget, el.querySelector('.widget-body')), 'Components.afterRender:' + widget.type)();
     return el;
   },
