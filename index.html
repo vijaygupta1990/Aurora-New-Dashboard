@@ -696,55 +696,68 @@ main#canvas-wrap{
 }
 .widget:hover .widget-resize-handle{ opacity:1; }
 
-/* ---- Filter widget (Part 9 functionality, Part 5 flat visual design) — a
-   compact single-line chip row (replaces the old native <select>/listbox)
-   built from the same flat tokens as the rest of the dashboard. Values sit
-   on one row and scroll horizontally instead of growing the widget taller. ---- */
-.widget-body:has(.filter-widget-body){ padding:.55rem .7rem; align-items:stretch; justify-content:center; text-align:left; }
-.filter-widget-body{ width:100%; display:flex; align-items:center; gap:.4rem; }
-.filter-chip-row{
-  flex:1; min-width:0; display:flex; align-items:center; gap:.35rem;
-  overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; padding:.2rem .05rem;
+/* ---- Filter widget — matches Index_Reference.html's .filter-ctrl: uppercase
+   label above a native dropdown for single-select filters, or the same label
+   above a wrapping chip box for multi-select filters. Replaces the old
+   horizontal chip-row-only layout so a row of these widgets reads the same
+   as the reference dashboard's Filters panel. ---- */
+.widget-body:has(.filter-ctrl){ padding:.7rem .85rem; align-items:stretch; justify-content:center; text-align:left; }
+.filter-ctrl{ width:100%; display:flex; flex-direction:column; gap:.35rem; }
+.filter-ctrl-headrow{ display:flex; align-items:center; justify-content:space-between; gap:.4rem; }
+.filter-ctrl label{ font-size:.72rem; font-weight:700; color:var(--ink-mute); text-transform:uppercase; letter-spacing:.04em; }
+.filter-select{
+  width:100%; font-size:.85rem; font-weight:600; color:var(--ink); background-color:var(--glass-fill);
+  border:1px solid var(--glass-border); border-radius:8px; padding:.5rem 1.8rem .5rem .65rem; cursor:pointer;
+  appearance:none; -webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2364748b'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right .65rem center;
+  transition:border-color var(--t-fast) var(--ease);
 }
-.filter-chip-row::-webkit-scrollbar{ height:4px; }
-.filter-chip-row::-webkit-scrollbar-thumb{ background:var(--glass-border-strong); border-radius:4px; }
+.filter-select:hover, .filter-select:focus{ border-color:var(--theme-filter); outline:none; }
+.filter-chip-group{ display:flex; flex-wrap:wrap; gap:.3rem; max-height:90px; overflow-y:auto; scrollbar-width:thin; }
+.filter-chip-group::-webkit-scrollbar{ width:4px; }
+.filter-chip-group::-webkit-scrollbar-thumb{ background:var(--glass-border-strong); border-radius:4px; }
 .filter-chip{
   flex:none; white-space:nowrap; border-radius:999px; border:1px solid var(--glass-border);
   background:var(--glass-fill); color:var(--ink-mute); font-size:.72rem; font-weight:600;
-  line-height:1; padding:.34rem .65rem; cursor:pointer;
+  line-height:1; padding:.3rem .6rem; cursor:pointer;
   transition:background var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
 .filter-chip:hover{ border-color:var(--theme-filter); color:var(--ink); }
 .filter-chip.active{ background:var(--theme-filter); border-color:var(--theme-filter); color:#fff; }
 .filter-chip-clear{
-  flex:none; width:1.6rem; height:1.6rem; display:flex; align-items:center; justify-content:center;
+  flex:none; width:1.4rem; height:1.4rem; display:flex; align-items:center; justify-content:center;
   border-radius:50%; border:1px solid var(--glass-border); background:var(--glass-fill); color:var(--ink-mute);
-  cursor:pointer; font-size:.68rem; padding:0;
+  cursor:pointer; font-size:.65rem; padding:0;
 }
 .filter-chip-clear:hover{ color:var(--accent-coral); border-color:var(--accent-coral); }
 
-/* ---- KPI widget (Part 11 functionality, Part 12 flat visual design) ----
-   Flat card matching Index_Reference.html's .kpi-box: small uppercase muted
-   label (kpi-sub), large bold value, a trend badge + optional target label
-   on one row, and a 4px rounded progress bar beneath when a target is set.
-   No blur/glow — same flat tokens as the rest of the dashboard. */
-.kpi-widget-body{ gap:.3rem; position:relative; width:100%; align-items:stretch; text-align:left; --kpi-accent: var(--theme-kpi); }
-.kpi-icon-badge{
-  width:2.5rem; height:2.5rem; border-radius:12px; display:flex; align-items:center; justify-content:center;
-  font-size:1.05rem; color:#fff; margin-bottom:.3rem;
-  background:var(--kpi-accent);
+/* ---- KPI widget — matches Index_Reference.html's .kpi-card: a left accent
+   bar, small uppercase label + icon badge on one row, a large bold value,
+   a trend line (vs the unfiltered total) and a muted "vs total" comparison,
+   with an optional target label + progress bar when a target is set. ---- */
+.widget-body:has(.kpi-card-body){ padding:0; }
+.kpi-card-body{
+  position:relative; width:100%; height:100%; padding:1rem 1.1rem 1rem 1.3rem;
+  display:flex; flex-direction:column; justify-content:center; gap:.3rem; text-align:left;
+  --kpi-accent: var(--theme-kpi);
 }
-.kpi-value{
-  font-size:2.15rem; font-weight:700; color:var(--ink); line-height:1;
+.kpi-card-body::before{ content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--kpi-accent); }
+.kpi-top{ display:flex; align-items:center; justify-content:space-between; gap:.5rem; }
+.kpi-name{ font-size:.72rem; font-weight:700; color:var(--ink-mute); text-transform:uppercase; letter-spacing:.05em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.kpi-icon{
+  width:1.9rem; height:1.9rem; border-radius:9px; display:flex; align-items:center; justify-content:center;
+  font-size:.85rem; flex:0 0 auto; color:var(--kpi-accent);
+  background:color-mix(in srgb, var(--kpi-accent) 16%, transparent);
 }
-.kpi-sub{ font-size:.72rem; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-mute); }
-.kpi-status-row{ display:flex; align-items:center; justify-content:space-between; gap:.5rem; font-size:.72rem; margin-top:.2rem; flex-wrap:wrap; }
-.kpi-trend{ display:inline-flex; align-items:center; gap:.3rem; font-size:.72rem; font-weight:600; padding:.15rem .5rem; border-radius:999px; }
-.kpi-trend.up{ color:var(--accent-green); background:rgba(61,220,151,.12); }
-.kpi-trend.down{ color:var(--accent-coral); background:rgba(255,107,129,.12); }
-.kpi-trend.flat{ color:var(--ink-mute); background:var(--glass-fill); }
+.kpi-value{ font-family:var(--font-mono); font-weight:800; font-size:clamp(1.35rem, 2.3vw, 1.9rem); line-height:1; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; letter-spacing:-.01em; }
+.kpi-status-row{ display:flex; align-items:center; justify-content:space-between; gap:.5rem; font-size:.72rem; flex-wrap:wrap; }
+.kpi-trend{ display:inline-flex; align-items:center; gap:.3rem; font-weight:600; }
+.kpi-trend.up, .kpi-trend.flat{ color:var(--accent-green); }
+.kpi-trend.down{ color:var(--accent-coral); }
 .kpi-target{ font-size:.72rem; color:var(--ink-mute); }
-.progress-track{ width:100%; height:4px; background:var(--glass-fill); border:1px solid var(--glass-border); border-radius:2px; margin-top:.6rem; overflow:hidden; }
+.kpi-compare{ font-size:.72rem; color:var(--ink-mute); }
+.progress-track{ width:100%; height:4px; background:var(--glass-fill); border:1px solid var(--glass-border); border-radius:2px; margin-top:.3rem; overflow:hidden; }
 .progress-fill{ height:100%; background:var(--kpi-accent); }
 .kpi-icon-color-row{ display:flex; gap:.7rem; align-items:flex-end; margin-top:.2rem; }
 
@@ -3154,40 +3167,51 @@ const FilterEngine = {
 
 Components.register('filter', {
   defaultTitle: 'Filter',
-  // Compact single-line chip row (Part 9 functionality unchanged — still backed by
-  // FilterEngine.active/setSelection/clearFilter). Single-select gets a leading "All"
-  // chip that clears the selection; multi-select toggles chips independently. The row
-  // scrolls horizontally on overflow instead of growing the widget taller.
+  // Matches Index_Reference.html's .filter-ctrl layout: an uppercase field label
+  // above the control. Single-select renders as a native dropdown (with a leading
+  // "All" option that clears the selection); multi-select keeps the wrapping chip
+  // box, now stacked under the label instead of a horizontal scrolling row.
   render(widget){
     const def = FilterEngine.filters.find(f => f.id === widget.filterId);
     if (!def) return `<i class="fa-solid fa-triangle-exclamation"></i><span>This filter's column is no longer available.</span>`;
     const options = FilterEngine.optionsFor(def.field);
     const selected = FilterEngine.active[def.field] || [];
-    const optionChips = options.map(o => `<button type="button" class="filter-chip ${selected.includes(o) ? 'active' : ''}" data-value="${Utils.esc(o)}">${Utils.esc(o)}</button>`).join('');
-    const chips = def.mode === 'single'
-      ? `<button type="button" class="filter-chip ${selected.length ? '' : 'active'}" data-value="">All</button>${optionChips}`
-      : optionChips;
+    if (def.mode === 'single'){
+      const optionsHtml = options.map(o => `<option value="${Utils.esc(o)}" ${selected[0] === o ? 'selected' : ''}>${Utils.esc(o)}</option>`).join('');
+      return `
+        <div class="filter-ctrl">
+          <label>${Utils.esc(def.field)}</label>
+          <select class="filter-select" aria-label="${Utils.esc(def.field)}">
+            <option value="">All</option>
+            ${optionsHtml}
+          </select>
+        </div>`;
+    }
+    const chips = options.map(o => `<button type="button" class="filter-chip ${selected.includes(o) ? 'active' : ''}" data-value="${Utils.esc(o)}">${Utils.esc(o)}</button>`).join('');
     return `
-      <div class="filter-widget-body">
-        <div class="filter-chip-row" role="group" aria-label="${Utils.esc(def.field)}">${chips}</div>
-        ${selected.length ? '<button type="button" class="filter-chip-clear" title="Clear selection"><i class="fa-solid fa-eraser"></i></button>' : ''}
+      <div class="filter-ctrl">
+        <div class="filter-ctrl-headrow">
+          <label>${Utils.esc(def.field)}</label>
+          ${selected.length ? '<button type="button" class="filter-chip-clear" title="Clear selection"><i class="fa-solid fa-eraser"></i></button>' : ''}
+        </div>
+        <div class="filter-chip-group" role="group" aria-label="${Utils.esc(def.field)}">${chips}</div>
       </div>`;
   },
   afterRender(widget, bodyEl){
     const def = FilterEngine.filters.find(f => f.id === widget.filterId);
     if (!def) return;
-    const row = bodyEl.querySelector('.filter-chip-row');
-    if (row) row.addEventListener('click', Utils.safe((e) => {
+    const select = bodyEl.querySelector('.filter-select');
+    if (select) select.addEventListener('change', Utils.safe(() => {
+      FilterEngine.setSelection(def.field, select.value ? [select.value] : []);
+    }, 'FilterWidget.selectChange'));
+    const group = bodyEl.querySelector('.filter-chip-group');
+    if (group) group.addEventListener('click', Utils.safe((e) => {
       const chip = e.target.closest('.filter-chip');
       if (!chip) return;
       const value = chip.dataset.value;
-      if (def.mode === 'single'){
-        FilterEngine.setSelection(def.field, value ? [value] : []);
-      } else {
-        const current = FilterEngine.active[def.field] || [];
-        const values = current.includes(value) ? current.filter(v => v !== value) : current.concat(value);
-        FilterEngine.setSelection(def.field, values);
-      }
+      const current = FilterEngine.active[def.field] || [];
+      const values = current.includes(value) ? current.filter(v => v !== value) : current.concat(value);
+      FilterEngine.setSelection(def.field, values);
     }, 'FilterWidget.chipClick'));
     const clearBtn = bodyEl.querySelector('.filter-chip-clear');
     if (clearBtn) clearBtn.addEventListener('click', Utils.safe(() => FilterEngine.clearFilter(def.field), 'FilterWidget.clear'));
@@ -3281,24 +3305,22 @@ const KpiEngine = {
       default: return Math.round(num).toLocaleString('en-IN');
     }
   },
-  // Returns both the raw number (for the trend comparison below) and its formatted display —
-  // callers that don't need the trend can just read .display.
+  // Returns the filtered value alongside the unfiltered baseline total for the same
+  // field/aggregation — this is what powers the "vs total" comparison line and trend,
+  // matching Index_Reference.html's kpi-card (which compares the current filtered
+  // figure to the whole-dataset total rather than to a prior render).
   compute(config){
     const rows = FilterEngine.getFilteredRows();
     const raw = DataEngine.aggregate(rows, config.field, config.agg);
-    return { raw, display:this.formatValue(raw, config.format) };
+    const baseline = DataEngine.aggregate(FilterEngine.baseRows(), config.field, config.agg);
+    return { raw, display:this.formatValue(raw, config.format), baseline, baselineDisplay:this.formatValue(baseline, config.format) };
   },
-  // Trend/comparison (Part 12): compares the KPI's value now to what it was the last time this
-  // exact widget was computed (stored on the widget itself, so it persists across re-renders and
-  // survives a page reload via Grid's normal localStorage persistence) — i.e. "change since your
-  // last refresh/filter change", which is the comparison that's actually meaningful without
-  // assuming any particular date range exists in the data.
-  trend(widget, raw){
-    const prev = widget._prevRaw;
-    widget._prevRaw = raw;
-    if (prev === undefined || prev === null || raw === null || !isFinite(prev) || prev === 0) return null;
-    const pct = ((raw - prev) / Math.abs(prev)) * 100;
-    if (Math.abs(pct) < 0.05) return { flat:true };
+  // Trend vs the unfiltered total: no active filters (or a baseline of zero) reads as
+  // "Stable"; otherwise shows how far the filtered figure sits above/below the total.
+  trendVsBaseline(raw, baseline){
+    if (baseline === null || baseline === undefined || raw === null || !isFinite(baseline) || baseline === 0) return { flat:true };
+    const pct = ((raw - baseline) / Math.abs(baseline)) * 100;
+    if (Math.abs(pct) < 0.5) return { flat:true };
     return { up: pct > 0, pct: Math.abs(pct) };
   }
 };
@@ -3307,15 +3329,13 @@ Components.register('kpi', {
   defaultTitle: 'KPI',
   render(widget){
     if (!widget.field || !widget.agg) return `<i class="fa-solid fa-gauge-high"></i><span>This KPI has no field configured.</span>`;
-    const { raw, display } = KpiEngine.compute(widget);
-    const trend = KpiEngine.trend(widget, raw);
+    const { raw, display, baseline, baselineDisplay } = KpiEngine.compute(widget);
+    const trend = KpiEngine.trendVsBaseline(raw, baseline);
     const accent = widget.color && Utils.isHex(widget.color) ? widget.color : 'var(--theme-kpi)';
     const icon = widget.icon || 'fa-gauge-high';
-    const trendHtml = trend
-      ? trend.flat
-        ? `<span class="kpi-trend flat"><i class="fa-solid fa-minus"></i> No change</span>`
-        : `<span class="kpi-trend ${trend.up ? 'up' : 'down'}"><i class="fa-solid fa-arrow-${trend.up ? 'up' : 'down'}"></i> ${trend.pct.toFixed(1)}%</span>`
-      : '';
+    const trendHtml = trend.flat
+      ? `<span class="kpi-trend flat"><i class="fa-solid fa-arrow-trend-up"></i> Stable</span>`
+      : `<span class="kpi-trend ${trend.up ? 'up' : 'down'}"><i class="fa-solid fa-arrow-trend-${trend.up ? 'up' : 'down'}"></i> ${trend.pct.toFixed(1)}% ${trend.up ? 'above' : 'below'} total</span>`;
     const hasTarget = widget.target !== undefined && widget.target !== null && widget.target > 0;
     const progressPct = hasTarget ? Math.min(100, Math.max(0, (raw / widget.target) * 100)) : null;
     const targetHtml = hasTarget
@@ -3325,14 +3345,17 @@ Components.register('kpi', {
       ? `<div class="progress-track"><div class="progress-fill" style="width:${progressPct}%;"></div></div>`
       : '';
     return `
-      <div class="kpi-widget-body" style="--kpi-accent:${accent};">
-        <div class="kpi-icon-badge"><i class="fa-solid ${Utils.esc(icon)}"></i></div>
+      <div class="kpi-card-body" style="--kpi-accent:${accent};">
+        <div class="kpi-top">
+          <span class="kpi-name">${Utils.esc(widget.title || widget.field)}</span>
+          <span class="kpi-icon"><i class="fa-solid ${Utils.esc(icon)}"></i></span>
+        </div>
         <div class="kpi-value">${Utils.esc(display)}</div>
-        <div class="kpi-sub text-small text-mute-inline">${Utils.esc(KpiEngine.AGGS[widget.agg] || widget.agg)} of ${Utils.esc(widget.field)}</div>
         <div class="kpi-status-row">
           ${trendHtml}
           ${targetHtml}
         </div>
+        <div class="kpi-compare text-mute-inline">vs total: ${Utils.esc(baselineDisplay)}</div>
         ${progressHtml}
       </div>`;
   },
