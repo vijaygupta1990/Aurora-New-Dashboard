@@ -4010,21 +4010,21 @@ const ChartEngine = {
   // rectangle pasted onto the glass. Kept deliberately restrained (no glow on the chart itself)
   // so data stays readable, per "do not overuse glow".
   baseOptions(cfg, extra){
-    const ink = getComputedStyle(document.body).getPropertyValue('--ink').trim() || '#eef2ff';
+    const ink = getComputedStyle(document.body).getPropertyValue('--ink').trim() || '#0f172a';
     const mute = getComputedStyle(document.body).getPropertyValue('--ink-mute').trim() || '#9aa5c7';
     const grid = 'rgba(255,255,255,.08)';
     return Object.assign({
       responsive:true, maintainAspectRatio:false, animation:{ duration:280 },
       plugins:{
-        legend:{ display: cfg.legend !== false, position:'bottom', labels:{ color:mute, boxWidth:10, font:{ size:11 } } },
+        legend:{ display: cfg.legend !== false, position:'bottom', labels:{ color:ink, boxWidth:10, font:{ size:11, weight:'800' } } },
         tooltip:{
           backgroundColor:'rgba(14,18,32,.92)', borderColor:'rgba(255,255,255,.14)', borderWidth:1,
           titleColor:ink, bodyColor:mute, padding:10, cornerRadius:10, displayColors:true
         }
       },
       scales: (this.CHART_META[cfg.chartType] || {}).family === 'pie' || (this.CHART_META[cfg.chartType] || {}).family === 'radar' ? {} : {
-        x:{ grid:{ color:grid, display:cfg.grid !== false }, ticks:{ color:mute, font:{ size:11 } } },
-        y:{ grid:{ color:grid, display:cfg.grid !== false }, ticks:{ color:mute, font:{ size:11 } } }
+        x:{ grid:{ color:grid, display:cfg.grid !== false }, ticks:{ color:ink, font:{ size:12, weight:'800' } } },
+        y:{ grid:{ color:grid, display:cfg.grid !== false }, ticks:{ color:ink, font:{ size:12, weight:'800' } } }
       }
     }, extra || {});
   },
@@ -4033,13 +4033,17 @@ const ChartEngine = {
     if (existingInstance) existingInstance.destroy();
     const meta = this.CHART_META[cfg.chartType] || this.CHART_META.bar;
     const rows = FilterEngine.getFilteredRows();
+    // Same theme-aware ink colour baseOptions() reads for legend/tick text — used below for the
+    // X/Y axis ticks and (for scatter/bubble) axis titles, which previously had a hardcoded
+    // light grey ('#9aa5c7') that read as too faint against the light theme.
+    const ink = getComputedStyle(document.body).getPropertyValue('--ink').trim() || '#0f172a';
 
     if (meta.family === 'xy'){
       const points = this.buildPoints(rows, cfg.xField, cfg.yField, cfg.sizeField, meta.needsSize);
       return new Chart(canvas.getContext('2d'), {
         type: meta.jsType,
         data:{ datasets:[{ label:cfg.yField, data:points, backgroundColor:this.DEFAULT_COLOR + (meta.jsType==='bubble'?'88':'cc'), borderColor:this.DEFAULT_COLOR }] },
-        options: this.baseOptions(cfg, { scales:{ x:{ title:{ display:true, text:cfg.xField, color:'#9aa5c7' } }, y:{ title:{ display:true, text:cfg.yField, color:'#9aa5c7' } } } })
+        options: this.baseOptions(cfg, { scales:{ x:{ title:{ display:true, text:cfg.xField, color:ink, font:{ weight:'bold' } } }, y:{ title:{ display:true, text:cfg.yField, color:ink, font:{ weight:'bold' } } } } })
       });
     }
 
@@ -4082,8 +4086,8 @@ const ChartEngine = {
     const options = this.baseOptions(cfg, {
       indexAxis: meta.indexAxis || 'x',
       scales: (isPie || isRadar) ? {} : {
-        x:{ stacked:!!meta.stack, grid:{ color:'rgba(255,255,255,.08)', display:cfg.grid !== false }, ticks:{ color:'#9aa5c7', font:{ size:11 } } },
-        y:{ stacked:!!meta.stack, grid:{ color:'rgba(255,255,255,.08)', display:cfg.grid !== false }, ticks:{ color:'#9aa5c7', font:{ size:11 } } }
+        x:{ stacked:!!meta.stack, grid:{ color:'rgba(255,255,255,.08)', display:cfg.grid !== false }, ticks:{ color:ink, font:{ size:12, weight:'800' } } },
+        y:{ stacked:!!meta.stack, grid:{ color:'rgba(255,255,255,.08)', display:cfg.grid !== false }, ticks:{ color:ink, font:{ size:12, weight:'800' } } }
       },
       onClick: (evt, elements, chart) => {
         let idx = elements && elements.length ? elements[0].index : null;
