@@ -3943,6 +3943,11 @@ const ChartEngine = {
   },
   PALETTE: ['#7C5CFF','#22D3EE','#F472B6','#34D399','#FBBF24','#F87171','#60A5FA','#C084FC','#4ADE80','#FB923C'],
   colorFor(i){ return this.PALETTE[i % this.PALETTE.length]; },
+  // Default single-series colour (Multi-Color OFF) — used only for the one-series/no-legend
+  // case (and scatter/bubble, which have no Multi-Color toggle at all). Kept separate from
+  // PALETTE so Multi-Color ON and any multi-series (seriesField) chart keep their existing
+  // per-category/per-series palette colours untouched.
+  DEFAULT_COLOR: '#0EA5A0',
 
   // Groups filtered rows by the X field (with optional date grouping) and aggregates the Y field
   // per group/per series — the one function every 'cat'/'combo' chart family renders from.
@@ -4033,7 +4038,7 @@ const ChartEngine = {
       const points = this.buildPoints(rows, cfg.xField, cfg.yField, cfg.sizeField, meta.needsSize);
       return new Chart(canvas.getContext('2d'), {
         type: meta.jsType,
-        data:{ datasets:[{ label:cfg.yField, data:points, backgroundColor:this.colorFor(0) + (meta.jsType==='bubble'?'88':'cc'), borderColor:this.colorFor(0) }] },
+        data:{ datasets:[{ label:cfg.yField, data:points, backgroundColor:this.DEFAULT_COLOR + (meta.jsType==='bubble'?'88':'cc'), borderColor:this.DEFAULT_COLOR }] },
         options: this.baseOptions(cfg, { scales:{ x:{ title:{ display:true, text:cfg.xField, color:'#9aa5c7' } }, y:{ title:{ display:true, text:cfg.yField, color:'#9aa5c7' } } } })
       });
     }
@@ -4055,13 +4060,20 @@ const ChartEngine = {
       }));
     } else {
       const multiColor = !!cfg.multiColor && series.length === 1;
-      datasets = series.map((s,i) => ({
-        label:s.name, data:s.data,
-        backgroundColor: multiColor ? labels.map((_,li) => dim(this.colorFor(li), li)) : (meta.fill ? this.colorFor(i)+'55' : dim(this.colorFor(i), 0)),
-        borderColor: multiColor ? labels.map((_,li) => dim(this.colorFor(li), li)) : this.colorFor(i),
-        fill: !!meta.fill, tension: isLine ? (meta.tension||0) : 0, borderWidth:2,
-        pointRadius: isLine ? 3 : undefined, pointBackgroundColor: multiColor ? labels.map((_,li) => dim(this.colorFor(li), li)) : this.colorFor(i)
-      }));
+      // Solo series (no seriesField, Multi-Color off) uses the fixed default chart colour;
+      // a real multi-series chart (seriesField set, series.length > 1) keeps cycling PALETTE
+      // per series exactly as before — only the single-series default colour changed.
+      const soloColor = series.length === 1 && !multiColor ? this.DEFAULT_COLOR : null;
+      datasets = series.map((s,i) => {
+        const base = soloColor || this.colorFor(i);
+        return {
+          label:s.name, data:s.data,
+          backgroundColor: multiColor ? labels.map((_,li) => dim(this.colorFor(li), li)) : (meta.fill ? base+'55' : dim(base, 0)),
+          borderColor: multiColor ? labels.map((_,li) => dim(this.colorFor(li), li)) : base,
+          fill: !!meta.fill, tension: isLine ? (meta.tension||0) : 0, borderWidth:2,
+          pointRadius: isLine ? 3 : undefined, pointBackgroundColor: multiColor ? labels.map((_,li) => dim(this.colorFor(li), li)) : base
+        };
+      });
       if (cfg.trendline && series.length){
         datasets.push({ label:'Trend', data:this.trendline(series[0].data), type:'line', borderColor:'#F87171', borderDash:[6,4], borderWidth:2, pointRadius:0, fill:false, tension:0 });
       }
@@ -4089,7 +4101,11 @@ const ChartEngine = {
     id:'chartDataLabels',
     afterDatasetsDraw(chart){
       const ctx = chart.ctx; ctx.save();
-      ctx.font = '600 10px Inter, sans-serif'; ctx.fillStyle = '#eef2ff'; ctx.textAlign = 'center';
+      // Was a hardcoded near-white '#eef2ff', which read as too light against the light theme's
+      // background — now reads the theme's own ink colour (dark in light theme, light in dark
+      // theme) at bold weight, same pattern baseOptions() already uses for axis/legend text.
+      const ink = getComputedStyle(document.body).getPropertyValue('--ink').trim() || '#0f172a';
+      ctx.font = '700 10px Inter, sans-serif'; ctx.fillStyle = ink; ctx.textAlign = 'center';
       chart.data.datasets.forEach((ds, di) => {
         chart.getDatasetMeta(di).data.forEach((el, i) => {
           const raw = ds.data[i]; if (raw === undefined || raw === null) return;
