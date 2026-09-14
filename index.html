@@ -74,8 +74,8 @@
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
   import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
-  import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
-  window.Firebase = { initializeApp, getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut, getFirestore, doc, getDoc, setDoc, collection, getDocs };
+  import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+  window.Firebase = { initializeApp, getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut, getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs };
   window.dispatchEvent(new Event('firebase:ready'));
 </script>
 
@@ -339,6 +339,32 @@ button{ font-family:inherit; }
 }
 .drawer-backdrop.open{ opacity:1; pointer-events:auto; }
 
+/* ============================================================================
+   GENERIC CONFIRM MODAL — used by Reset Dashboard (and, later, Delete
+   Dashboard in the Dashboard Manager). Centered overlay, separate from the
+   side-drawer backdrop above so both systems can't accidentally interfere. */
+.modal-backdrop{
+  position:fixed; inset:0; z-index:75; background:rgba(4,6,14,.55);
+  opacity:0; pointer-events:none; transition:opacity var(--t-base) var(--ease);
+}
+.modal-backdrop.open{ opacity:1; pointer-events:auto; }
+.confirm-modal{
+  position:fixed; top:50%; left:50%; transform:translate(-50%,-46%); z-index:76;
+  width:min(420px, 92vw); padding:1.5rem; opacity:0; pointer-events:none;
+  transition:opacity var(--t-base) var(--ease), transform var(--t-base) var(--ease);
+}
+.confirm-modal.open{ opacity:1; pointer-events:auto; transform:translate(-50%,-50%); }
+.confirm-modal #confirm-modal-message{ color:var(--ink-soft); margin-top:.5rem; line-height:1.5; }
+.confirm-modal-actions{ display:flex; justify-content:flex-end; gap:.6rem; margin-top:1.3rem; }
+.confirm-modal-danger{ background:var(--accent-coral); color:#fff; border-color:var(--accent-coral); }
+
+/* Share Dashboard modal (Part 6) reuses .confirm-modal for the panel itself —
+   only the URL row + read-only input are specific to this dialog. */
+.share-modal-url-row{ display:flex; align-items:center; gap:.5rem; margin-top:.9rem; }
+.share-modal-url-row input{ flex:1; min-width:0; font-family:var(--font-mono); font-size:.78rem; }
+#share-modal-dashboard-name{ color:var(--ink-soft); margin-top:.3rem; }
+.confirm-modal-danger:hover{ filter:brightness(1.08); background:var(--accent-coral); }
+
 /* shared right-side drawer geometry — reused by the Theme drawer (Part 3)
    and the Data Settings drawer (Part 6); only one is ever open at once. */
 .theme-drawer, .data-drawer{
@@ -402,6 +428,24 @@ button{ font-family:inherit; }
 .data-col-type.type-number{ color:var(--accent-cyan); }
 .data-col-type.type-date, .data-col-type.type-datetime, .data-col-type.type-timeofday{ color:var(--accent-amber); }
 .data-col-type.type-boolean{ color:var(--accent-violet); }
+
+/* ============================================================================
+   DASHBOARD MANAGER (Part 5) — list of saved dashboards inside its own
+   .data-columns wrapper (same wrapper Viewer Accounts already uses). Each
+   row is a bit richer than a plain .data-meta-row (title + status line +
+   three icon actions), so it gets its own small block instead of stretching
+   that shared class to fit a shape it wasn't meant for. */
+.manager-row{
+  display:flex; align-items:center; justify-content:space-between; gap:.6rem; padding:.6rem .7rem;
+  border-radius:10px; background:rgba(255,255,255,.04); border:1px solid var(--glass-border);
+}
+.manager-row-info{ min-width:0; overflow:hidden; }
+.manager-row-title{ display:block; font-size:.86rem; font-weight:600; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.manager-row-status{ display:block; font-size:.72rem; color:var(--ink-mute); margin-top:.1rem; }
+.manager-row-actions{ display:flex; align-items:center; gap:.3rem; flex:none; }
+.manager-row-rename-form{ display:flex; align-items:center; gap:.4rem; flex:1; min-width:0; }
+.manager-row-rename-form input{ flex:1; min-width:0; padding:.4rem .6rem; font-size:.84rem; }
+.manager-empty{ text-align:center; padding:1.2rem 0; }
 
 .data-drawer-actions{ display:flex; gap:.7rem; margin-top:1.3rem; }
 
@@ -1053,6 +1097,7 @@ main#canvas-wrap{
     <div class="rail-spacer"></div>
     <button class="rail-btn admin-only" title="Data settings" data-nav="data"><i class="fa-solid fa-database"></i></button>
     <button class="rail-btn admin-only" title="Users" data-nav="users"><i class="fa-solid fa-users"></i></button>
+    <button class="rail-btn admin-only" title="Dashboard Manager" data-nav="manager"><i class="fa-solid fa-layer-group"></i></button>
     <button class="rail-btn admin-only" title="Settings" data-nav="settings"><i class="fa-solid fa-gear"></i></button>
   </aside>
 
@@ -1140,6 +1185,43 @@ main#canvas-wrap{
      Theme icon. Reads/writes the --theme-* variables via the Theme module.
      ========================================================================== -->
 <div class="drawer-backdrop" id="drawer-backdrop"></div>
+
+<!-- ==========================================================================
+     GENERIC CONFIRM MODAL — a single reusable "Are you sure?" dialog for any
+     destructive action (Reset Dashboard now; Delete Dashboard later reuses the
+     same markup/JS instead of a second confirm system). Centered, not a
+     side-drawer, since it needs a Cancel/Confirm choice rather than settings.
+     ========================================================================== -->
+<div class="modal-backdrop" id="confirm-modal-backdrop"></div>
+<div class="glass-panel raised confirm-modal" id="confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-modal-title" aria-hidden="true">
+  <h3 class="text-title" id="confirm-modal-title">Are you sure?</h3>
+  <p class="text-small" id="confirm-modal-message"></p>
+  <div class="confirm-modal-actions">
+    <button type="button" class="glass-btn" id="confirm-modal-cancel">Cancel</button>
+    <button type="button" class="glass-btn confirm-modal-danger" id="confirm-modal-confirm">Confirm</button>
+  </div>
+</div>
+
+<!-- ==========================================================================
+     SHARE DASHBOARD MODAL (Part 6) — shows the current dashboard's stable
+     share URL (?dashboardId=<id>, same id ConfigManager.publish() already
+     saves under) with a one-click Copy Link. Viewers who open this URL still
+     go through the existing Google sign-in + admin-approval flow — sharing
+     the link never bypasses that. See ShareModal below.
+     ========================================================================== -->
+<div class="modal-backdrop" id="share-modal-backdrop"></div>
+<div class="glass-panel raised confirm-modal" id="share-modal" role="dialog" aria-modal="true" aria-labelledby="share-modal-title" aria-hidden="true">
+  <h3 class="text-title" id="share-modal-title">Share Dashboard</h3>
+  <p class="text-small" id="share-modal-dashboard-name"></p>
+  <div class="share-modal-url-row">
+    <input type="text" class="glass-input" id="share-modal-url" readonly aria-label="Share URL">
+    <button type="button" class="glass-btn btn-aurora" id="share-modal-copy-btn"><i class="fa-solid fa-copy"></i> Copy Link</button>
+  </div>
+  <div class="confirm-modal-actions">
+    <button type="button" class="glass-btn" id="share-modal-close-btn">Close</button>
+  </div>
+</div>
+
 <aside class="glass-panel raised theme-drawer" id="theme-drawer" aria-hidden="true">
   <div class="side-drawer-head">
     <h3 class="text-title">Appearance</h3>
@@ -1220,16 +1302,7 @@ main#canvas-wrap{
 
   <div class="data-columns" id="data-columns"></div>
 
-  <label class="data-field-label" for="sheet-auto-select" style="margin-top:1.2rem;">Auto refresh</label>
-  <select class="glass-input data-select" id="sheet-auto-select">
-    <option value="0">Off</option>
-    <option value="30000">Every 30 seconds</option>
-    <option value="60000">Every 1 minute</option>
-    <option value="300000">Every 5 minutes</option>
-    <option value="900000">Every 15 minutes</option>
-  </select>
-
-  <div class="data-drawer-actions">
+  <div class="data-drawer-actions" style="margin-top:1.2rem;">
     <button type="button" class="glass-btn" id="sheet-refresh-btn" style="flex:1;justify-content:center;"><i class="fa-solid fa-rotate-right"></i> Refresh now</button>
     <button type="button" class="glass-btn" id="sheet-disconnect-btn" style="flex:1;justify-content:center;color:var(--accent-coral);"><i class="fa-solid fa-plug-circle-xmark"></i> Disconnect</button>
   </div>
@@ -1267,7 +1340,31 @@ main#canvas-wrap{
 </aside>
 
 <!-- ==========================================================================
-     SETTINGS DRAWER — admin-only. The Save Changes button pushes the full
+     DASHBOARD MANAGER DRAWER (Part 5) — admin-only. Lists every saved
+     dashboard (one dashboardConfig/{id} document per row) with Open/Rename/
+     Delete. Open navigates this tab to that dashboard's own
+     ?dashboardId=... URL, so editing + Save Dashboard updates that SAME
+     document — see DashboardManager below for why this can never create a
+     duplicate. "New Dashboard" simply drops the dashboardId param, which
+     Part 4's DashboardId._resolve() already turns into a fresh blank id.
+     ========================================================================== -->
+<aside class="glass-panel raised data-drawer" id="manager-drawer" aria-hidden="true">
+  <div class="side-drawer-head">
+    <h3 class="text-title">Dashboard Manager</h3>
+    <button class="glass-btn icon-only" id="manager-close" aria-label="Close dashboard manager"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+  <p class="text-small side-drawer-sub">Every dashboard you've saved, independent of the one currently open. Open one to edit it, rename it, or delete it for good.</p>
+
+  <button type="button" class="glass-btn btn-aurora" id="manager-new-btn" style="width:100%;justify-content:center;margin-top:.9rem;">
+    <i class="fa-solid fa-plus"></i> New Dashboard
+  </button>
+
+  <label class="data-field-label" style="margin-top:1.2rem;">Saved Dashboards</label>
+  <div class="data-columns" id="manager-list"></div>
+</aside>
+
+<!-- ==========================================================================
+     SETTINGS DRAWER — admin-only. The Save Dashboard button pushes the full
      configuration (layout, theme, calculated fields, filters, Google Sheet
      link) to Firestore, where every Viewer picks it up on login regardless
      of which computer/browser they're on. Export/Import remain as a local
@@ -1303,7 +1400,22 @@ main#canvas-wrap{
        same ConfigManager.publish() every module's settings already feed into — no separate
        save button per setting, and no second/duplicate save system. -->
   <button type="button" class="glass-btn btn-aurora" id="settings-publish-btn" style="width:100%;justify-content:center;margin-top:1.1rem;">
-    <i class="fa-solid fa-floppy-disk"></i> Save Changes
+    <i class="fa-solid fa-floppy-disk"></i> Save Dashboard
+  </button>
+
+  <!-- Reset Dashboard — clears the CURRENT working dashboard (local only) back to blank.
+       Confirmation-gated via the generic confirm modal; never touches Firestore or other
+       dashboards. See ConfigManager.resetLocal(). -->
+  <button type="button" class="glass-btn" id="settings-reset-btn" style="width:100%;justify-content:center;margin-top:.7rem;color:var(--accent-coral);border-color:rgba(255,107,129,.4);">
+    <i class="fa-solid fa-rotate-left"></i> Reset Dashboard
+  </button>
+
+  <!-- Share Dashboard — generates the ?dashboardId=... URL for the CURRENT dashboard. Disabled
+       until it has actually been saved at least once (ConfigManager.published), since sharing an
+       id nothing has been published to yet would just send people to a dashboard that doesn't
+       exist. See ShareModal / SettingsUI.updateShareButtonState(). -->
+  <button type="button" class="glass-btn" id="settings-share-btn" disabled style="width:100%;justify-content:center;margin-top:.7rem;">
+    <i class="fa-solid fa-share-nodes"></i> Share Dashboard
   </button>
 
   <p class="text-small side-drawer-sub" style="margin-top:1.1rem;">Local backup (does not affect what Viewers see):</p>
@@ -1802,17 +1914,41 @@ const DashboardId = {
     const cleaned = String(raw || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
     return cleaned || this.DEFAULT_ID;
   },
+  // ---- Part 4 (master builder must always start blank) -------------------------------------
+  // Short, effectively-unique id generated ONLY when the URL has no dashboardId/dashboard param
+  // at all. Time-based prefix + random suffix is plenty unique for "occasionally create a new
+  // dashboard" — no backend round-trip needed just to get an id.
+  _generateBlankId(){
+    return 'new-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  },
   _resolve(){
     try {
       const params = new URLSearchParams(window.location.search);
       // Accept either name — ?dashboardId=sales (primary, matches the brief) or ?dashboard=sales
       // (shorter alias) — so a slightly different Sites embed URL still works.
       const raw = params.get('dashboardId') || params.get('dashboard');
-      return this._sanitize(raw);
+      // A dashboardId was explicitly present in the URL (even if it sanitizes to something
+      // unexpected) — someone is intentionally opening a SPECIFIC dashboard: a real saved one
+      // via a share link or the Dashboard Manager's Open, or a deliberately-typed URL.
+      if (raw !== null){ this.isNew = false; return this._sanitize(raw); }
+      // No dashboardId param anywhere — this IS the master builder being opened fresh. Never
+      // reuse one fixed string here: that was the bug this part fixes. Reusing a fixed id (the
+      // old 'default' fallback) meant Save Dashboard on the bare URL always wrote to the SAME
+      // Firestore document, so opening the bare URL again later — even on another computer —
+      // would silently sync that same old dashboard back down instead of starting blank.
+      // Generating a brand-new id nobody has published to yet guarantees a blank start every
+      // single time the bare master URL is opened.
+      this.isNew = true;
+      return this._generateBlankId();
     } catch(err){
+      this.isNew = false;
       return this.DEFAULT_ID; // malformed/inaccessible URL — fall back rather than throw during boot
     }
   },
+  // True only when THIS page load generated a fresh id because no dashboardId param was given.
+  // Lets the rest of the app tell "brand-new, unsaved dashboard" apart from "an existing
+  // dashboard opened by its real id" without a second flag to keep in sync elsewhere.
+  isNew: false,
   // Public, read-only for the rest of the app: current dashboard's id, resolved once at load.
   current: null,
   // Namespaces any per-dashboard localStorage key. e.g. key('theme') -> 'auroraMis.sales.theme'.
@@ -1820,6 +1956,18 @@ const DashboardId = {
   key(name){ return 'auroraMis.' + this.current + '.' + name; }
 };
 DashboardId.current = DashboardId._resolve();
+// Writes a freshly-generated id into the address bar (same tab, no navigation/reload — just
+// like a bookmark's # fragment updating) so a manual page refresh while still mid-build resumes
+// THIS same in-progress dashboard instead of generating yet another new blank one on every F5.
+// Only a genuinely new tab/window/browser with no dashboardId param ever gets a brand-new id.
+// Defensive: replaceState is purely a convenience here, never required for the app to work.
+if (DashboardId.isNew){
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set('dashboardId', DashboardId.current);
+    window.history.replaceState(null, '', url.toString());
+  } catch(err){ /* non-fatal — worst case, refreshing mid-edit starts a new blank dashboard */ }
+}
 
 /* ---- Auth (placeholder — see login-note in the DOM) ----------------------- */
 /* ---- Auth ------------------------------------------------------------------
@@ -2155,7 +2303,7 @@ const ThemeUI = {
    editable title/description. Persisted the same way every other module's
    config is — its own localStorage slice (Grid.STORAGE_KEY-style pattern) —
    and picked up automatically by ConfigManager's export/publish/sync so it
-   survives refresh, re-login, and travels to Viewers via the Save Changes button. */
+   survives refresh, re-login, and travels to Viewers via the Save Dashboard button. */
 const DashboardHeader = {
   STORAGE_KEY: DashboardId.key('meta'),
   metaDefaults: {
@@ -2291,7 +2439,7 @@ const DashboardHeader = {
   refresh(){
     if (document.getElementById('dash-refresh-btn').disabled) return;
     if (SheetEngine.config) {
-      SheetEngine.refresh('manual');
+      SheetEngine.refresh();
     } else {
       UI.toast('No Google Sheet connected — open Data Settings to add one.', true);
     }
@@ -2452,20 +2600,15 @@ const CompanyLogo = {
    free instead of being guessed client-side from raw CSV text. */
 const SheetEngine = {
   STORAGE_KEY: DashboardId.key('sheet.config'),
-  AUTO_STORAGE_KEY: DashboardId.key('sheet.autoRefreshMs'),
 
   config: null,        // { url, id, gid, sheetName } — null until an admin connects one
   columns: [],          // [{ index, name, type, rawType, sample }]
   rows: [],               // [{ [columnName]: value, ... }]
-  autoRefreshMs: 0,
-  _autoTimer: null,
   _inFlight: false,
 
   init(){
     this.config = this.restoreConfig();
-    this.autoRefreshMs = this.restoreAutoRefresh();
     if (this.config && this.config.id) this.load(this.config, { silent:true });
-    this.applyAutoRefresh(this.autoRefreshMs);
   },
 
   // ---- persistence (remembers the LAST connected sheet, but never ships
@@ -2477,23 +2620,6 @@ const SheetEngine = {
   persistConfig(){
     try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.config)); }
     catch(err){ ErrorHandler.capture(err, 'SheetEngine.persistConfig'); }
-  },
-  // Distinguishes "never configured" (localStorage key genuinely absent — a brand new dashboard,
-  // or a brand new Dashboard ID that's never had its auto-refresh touched) from "Admin explicitly
-  // turned it Off" (key present, value "0") — the former gets a sensible non-zero default
-  // (Prompt 3) so a fresh dashboard refreshes live data out of the box; the latter is respected
-  // exactly as chosen.
-  DEFAULT_AUTO_REFRESH_MS: 300000, // 5 minutes — frequent enough to feel "live", gentle on Google's gviz endpoint
-  MIN_AUTO_REFRESH_MS: 15000,       // safety floor (defense in depth — the UI's own options never go below 30s)
-  restoreAutoRefresh(){
-    const raw = localStorage.getItem(this.AUTO_STORAGE_KEY);
-    if (raw === null) return this.DEFAULT_AUTO_REFRESH_MS; // never configured for this dashboard
-    const v = parseInt(raw, 10);
-    return isNaN(v) ? this.DEFAULT_AUTO_REFRESH_MS : v;
-  },
-  persistAutoRefresh(ms){
-    try { localStorage.setItem(this.AUTO_STORAGE_KEY, String(ms)); }
-    catch(err){ ErrorHandler.capture(err, 'SheetEngine.persistAutoRefresh'); }
   },
 
   // ---- URL validation + spreadsheet ID / tab (gid) extraction ------------
@@ -2681,7 +2807,7 @@ const SheetEngine = {
     }
     if (this._inFlight) return;
     this._inFlight = true;
-    if (!opts.silent) DashboardHeader.setSyncing(opts.source === 'auto' ? 'Auto-refreshing…' : 'Syncing…');
+    if (!opts.silent) DashboardHeader.setSyncing('Syncing…');
     EventBus.emit('sheet:loading');
 
     let attempt = 0, lastErr = null;
@@ -2720,28 +2846,16 @@ const SheetEngine = {
     this._inFlight = false;
   },
 
-  refresh(source){
+  // Manual refresh ONLY (Part 7, absolute requirement): the ONLY things that ever call this are
+  // the dashboard header's Refresh button (DashboardHeader.refresh, both roles) and the Data
+  // Settings drawer's "Refresh now" button (admin). Nothing in this file calls it from a timer,
+  // on page load beyond the initial connect, or from a filter/chart-click interaction.
+  refresh(){
     if (!this.config) {
-      if (source !== 'auto') UI.toast('No Google Sheet connected — open Data Settings to add one.', true);
+      UI.toast('No Google Sheet connected — open Data Settings to add one.', true);
       return;
     }
-    this.load(this.config, { source: source || 'manual' });
-  },
-
-  // ---- auto refresh --------------------------------------------------------
-  applyAutoRefresh(ms){
-    if (this._autoTimer) { clearInterval(this._autoTimer); this._autoTimer = null; }
-    ms = ms || 0;
-    // Defense in depth against excessive requests / rate limits (requirement): any nonzero
-    // interval is floored to MIN_AUTO_REFRESH_MS, even if it somehow arrived below that (e.g. an
-    // old export file, or a value written directly to Firestore) — the Data Settings dropdown
-    // itself never offers anything under 30s, so this floor should rarely if ever actually bind.
-    this.autoRefreshMs = ms > 0 ? Math.max(ms, this.MIN_AUTO_REFRESH_MS) : 0;
-    this.persistAutoRefresh(this.autoRefreshMs);
-    if (this.autoRefreshMs > 0) {
-      this._autoTimer = setInterval(Utils.safe(() => this.refresh('auto'), 'SheetEngine.autoRefresh'), this.autoRefreshMs);
-    }
-    EventBus.emit('sheet:auto-refresh-changed', this.autoRefreshMs);
+    this.load(this.config);
   },
 
   // ---- gviz response parsing + column/type/row detection ------------------
@@ -2806,7 +2920,7 @@ const DataUI = {
     document.getElementById('sheet-refresh-btn').addEventListener('click', Utils.safe(() => {
       if (!SheetEngine.config) { UI.toast('Connect a sheet first.', true); return; }
       this.setStatus('syncing', 'Refreshing…');
-      SheetEngine.refresh('manual');
+      SheetEngine.refresh();
     }, 'DataUI.refresh'));
     document.getElementById('sheet-disconnect-btn').addEventListener('click', Utils.safe(() => this.handleDisconnect(), 'DataUI.disconnect'));
     // Part 1: auto-detect tabs as the admin types/pastes a sheet URL, debounced so we
@@ -2822,11 +2936,6 @@ const DataUI = {
     document.getElementById('sheet-tab-select').addEventListener('change', Utils.safe(e => {
       document.getElementById('sheet-tab-input').value = e.target.value;
     }, 'DataUI.tabSelectChange'));
-    document.getElementById('sheet-auto-select').addEventListener('change', Utils.safe(e => {
-      const ms = parseInt(e.target.value, 10) || 0;
-      SheetEngine.applyAutoRefresh(ms);
-      UI.toast(ms === 0 ? 'Auto refresh turned off.' : 'Auto refresh enabled — every ' + e.target.selectedOptions[0].textContent.replace('Every ', '') + '.');
-    }, 'DataUI.autoRefresh'));
 
     EventBus.on('sheet:connected', Utils.safe(cfg => this.renderConnected(cfg), 'DataUI.onConnected'));
     EventBus.on('sheet:loading', Utils.safe(() => this.setStatus('syncing', 'Loading data…'), 'DataUI.onLoading'));
@@ -2846,7 +2955,6 @@ const DataUI = {
       if (SheetEngine.columns.length) this.renderLoaded({ columns:SheetEngine.columns, rows:SheetEngine.rows });
       this.autoDetectTabs(); // Part 1: repopulate the tab dropdown for an already-connected sheet
     }
-    document.getElementById('sheet-auto-select').value = String(SheetEngine.autoRefreshMs || 0);
   },
 
   // ---- Part 1: dynamic sheet/tab detection UI -----------------------------
@@ -2923,11 +3031,9 @@ const DataUI = {
   },
 
   handleDisconnect(){
-    SheetEngine.applyAutoRefresh(0);
     SheetEngine.disconnect();
     document.getElementById('sheet-url-input').value = '';
     document.getElementById('sheet-tab-input').value = '';
-    document.getElementById('sheet-auto-select').value = '0';
     document.getElementById('data-tab-detect').hidden = true;
     document.getElementById('sheet-tab-select').innerHTML = '<option value="">Choose a tab…</option>';
     this._lastDetectedId = null;
@@ -5614,7 +5720,7 @@ const UI = {
     // Pulls the shared published dashboard config from Firestore right after login (requirement
     // 11) — fire-and-forget: syncFromPublished() no-ops quickly if this browser is already
     // current, or reloads once if a newer config was published elsewhere.
-    EventBus.on('auth:login', () => { this.showShell(); ConfigManager.syncFromPublished(); });
+    EventBus.on('auth:login', () => { this.showShell(); if (!DashboardId.isNew) ConfigManager.syncFromPublished(); });
     EventBus.on('auth:logout', () => this.showLogin());
     EventBus.on('auth:disabled', () => this.showAccessDisabled());
     EventBus.on('auth:unauthorized', email => this.showUnauthorized(email));
@@ -5706,7 +5812,7 @@ const UI = {
         btn.classList.add('active');
         EventBus.emit('nav:change', btn.dataset.nav);
         const nav = btn.dataset.nav;
-        const drawers = { theme:ThemeUI, data:DataUI, filters:FiltersUI, calc:CalcFieldsUI, kpi:KpiBuilderUI, chart:ChartBuilderUI, table:TableBuilderUI, users:UserManagerUI, settings:SettingsUI };
+        const drawers = { theme:ThemeUI, data:DataUI, filters:FiltersUI, calc:CalcFieldsUI, kpi:KpiBuilderUI, chart:ChartBuilderUI, table:TableBuilderUI, users:UserManagerUI, manager:DashboardManagerUI, settings:SettingsUI };
         const target = drawers[nav];
         const wasOpen = target && document.getElementById(nav + '-drawer')?.classList.contains('open');
         Object.values(drawers).forEach(ui => ui.close());
@@ -5716,7 +5822,7 @@ const UI = {
     // Shared backdrop for every right-side drawer — clicking it closes
     // whichever one (if any) is currently open.
     document.getElementById('drawer-backdrop').addEventListener('click', () => {
-      ThemeUI.close(); DataUI.close(); FiltersUI.close(); CalcFieldsUI.close(); KpiBuilderUI.close(); ChartBuilderUI.close(); TableBuilderUI.close(); UserManagerUI.close(); SettingsUI.close();
+      ThemeUI.close(); DataUI.close(); FiltersUI.close(); CalcFieldsUI.close(); KpiBuilderUI.close(); ChartBuilderUI.close(); TableBuilderUI.close(); UserManagerUI.close(); DashboardManagerUI.close(); SettingsUI.close();
     });
   },
 
@@ -5755,11 +5861,13 @@ const UI = {
     btn.setAttribute('aria-expanded', 'false');
   },
 
-  // Hides every element marked .admin-only when role is 'viewer'. Full viewer
-  // lock-down (Builder/Settings/Add-*/Upload/Layout/Theme/Data) is a later
-  // part — this is the switch mechanism those parts will rely on. There is no
-  // Share feature in this build, and the dashboard header (Part 5) is
-  // intentionally identical for both roles.
+  // Hides every element marked .admin-only when role is 'viewer' — this is the switch mechanism
+  // every editing control (Add KPI/Chart/Table/Filter, drag/resize handles, per-widget edit/
+  // remove, Theme/Data/Settings/Users/Dashboard Manager) relies on. Viewer lock-down is complete
+  // as of Part 7: everything above is .admin-only, backed by real State.get('role') checks in the
+  // JS itself (e.g. Grid.startDrag) as defense in depth, not just a hidden button. The dashboard
+  // header, filter selection, chart-click cross-filtering, and manual Refresh are intentionally
+  // identical for both roles.
   applyRole(role){
     document.body.dataset.role = role;
     const badge = document.getElementById('role-badge');
@@ -5796,8 +5904,106 @@ const UI = {
    they open it from (the realistic Google Sites case), a shared config store
    is required — Part 21's Firestore (added for authentication anyway) is
    reused for this rather than standing up a second service. */
+/* ---- ConfirmModal — generic "Are you sure?" dialog ------------------------
+   One reusable confirm/cancel dialog for any destructive action in this app.
+   Reset Dashboard is the first caller; the Dashboard Manager's Delete action
+   (later part) reuses this instead of a second confirm system. Nothing here
+   performs the action itself — callers pass an onConfirm callback. */
+const ConfirmModal = {
+  _onConfirm: null,
+  init(){
+    document.getElementById('confirm-modal-cancel').addEventListener('click', () => this.close());
+    document.getElementById('confirm-modal-backdrop').addEventListener('click', () => this.close());
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') this.close(); });
+    document.getElementById('confirm-modal-confirm').addEventListener('click', Utils.safe(() => {
+      const fn = this._onConfirm;
+      this.close();
+      if (fn) fn();
+    }, 'ConfirmModal.confirm'));
+  },
+  // opts: { title, message, confirmLabel, onConfirm }
+  open(opts){
+    document.getElementById('confirm-modal-title').textContent = opts.title || 'Are you sure?';
+    document.getElementById('confirm-modal-message').textContent = opts.message || '';
+    document.getElementById('confirm-modal-confirm').textContent = opts.confirmLabel || 'Confirm';
+    this._onConfirm = typeof opts.onConfirm === 'function' ? opts.onConfirm : null;
+    document.getElementById('confirm-modal-backdrop').classList.add('open');
+    document.getElementById('confirm-modal').classList.add('open');
+    document.getElementById('confirm-modal').setAttribute('aria-hidden', 'false');
+  },
+  close(){
+    this._onConfirm = null;
+    document.getElementById('confirm-modal-backdrop').classList.remove('open');
+    document.getElementById('confirm-modal').classList.remove('open');
+    document.getElementById('confirm-modal').setAttribute('aria-hidden', 'true');
+  }
+};
+
+/* ---- ShareModal (Part 6) ---------------------------------------------------
+   Shows the CURRENT dashboard's share URL — reuses DashboardManager.urlFor()
+   from Part 5 (same ?dashboardId=... this-tab's-origin URL builder) rather
+   than inventing a second URL-construction routine. The URL only ever
+   contains the dashboard id; no Firebase config, credentials, or
+   data-source details are ever placed in it. Opening that URL still goes
+   through the existing Google sign-in + admin-approval flow — this does not
+   create a public/no-login viewing path. */
+const ShareModal = {
+  init(){
+    document.getElementById('share-modal-close-btn').addEventListener('click', () => this.close());
+    document.getElementById('share-modal-backdrop').addEventListener('click', () => this.close());
+    document.getElementById('share-modal-copy-btn').addEventListener('click', Utils.safe(() => this.copy(), 'ShareModal.copy'));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') this.close(); });
+  },
+  open(){
+    try {
+      if (!DashboardId.current) throw new Error('No dashboard id');
+      const url = DashboardManager.urlFor(DashboardId.current);
+      const name = (DashboardHeader.meta && DashboardHeader.meta.title) || DashboardId.current;
+      document.getElementById('share-modal-dashboard-name').textContent = name;
+      document.getElementById('share-modal-url').value = url;
+      document.getElementById('share-modal-backdrop').classList.add('open');
+      document.getElementById('share-modal').classList.add('open');
+      document.getElementById('share-modal').setAttribute('aria-hidden', 'false');
+    } catch(err){
+      ErrorHandler.capture(err, 'ShareModal.open');
+      UI.toast('Unable to generate share link.', true);
+    }
+  },
+  close(){
+    document.getElementById('share-modal-backdrop').classList.remove('open');
+    document.getElementById('share-modal').classList.remove('open');
+    document.getElementById('share-modal').setAttribute('aria-hidden', 'true');
+  },
+  async copy(){
+    const input = document.getElementById('share-modal-url');
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText){
+        await navigator.clipboard.writeText(input.value);
+      } else {
+        // Fallback for contexts where the async Clipboard API is unavailable/blocked (e.g. some
+        // embedded-iframe permission policies) — select-and-execCommand still works there.
+        input.removeAttribute('readonly');
+        input.select();
+        document.execCommand('copy');
+        input.setAttribute('readonly', 'true');
+      }
+      UI.toast('Link copied.');
+    } catch(err){
+      ErrorHandler.capture(err, 'ShareModal.copy');
+      UI.toast('Could not copy the link — you can select and copy it manually.', true);
+    }
+  }
+};
+
 const ConfigManager = {
   LOCAL_SYNC_MARK_KEY: DashboardId.key('lastAppliedPublishedAt'),
+  // Part 6 (Share Dashboard): whether THIS dashboard has ever actually been saved, so Share can
+  // stay disabled for a brand-new, unsaved dashboard (sharing an id nothing has been published to
+  // yet would just send people to a dashboard that doesn't exist). An explicit dashboardId in the
+  // URL (opened via the Dashboard Manager or an existing share link — i.e. !DashboardId.isNew)
+  // already implies it was saved at some point; publish() below flips this to true the moment a
+  // brand-new dashboard's first save succeeds.
+  published: !DashboardId.isNew,
 
   exportConfig(){
     return {
@@ -5806,9 +6012,10 @@ const ConfigManager = {
       widgets: Grid.widgets,
       theme: Theme.current,
       sheet: SheetEngine.config,
-      autoRefreshMs: SheetEngine.autoRefreshMs,
       calcFields: CalcFields.fields,
       filters: FilterEngine.filters,
+      kpis: KpiEngine.kpis,
+      kpiDisplayMode: KpiEngine.displayMode,
       meta: DashboardHeader.meta,
       logo: CompanyLogo.dataUrl
     };
@@ -5846,13 +6053,13 @@ const ConfigManager = {
   },
 
   // ---- Shared configuration (requirement 11), now per-dashboard (Prompt 2) ----
-  // Admin's "Save Changes" writes the full config to ONE Firestore document PER DASHBOARD ID
+  // Admin's "Save Dashboard" writes the full config to ONE Firestore document PER DASHBOARD ID
   // — dashboardConfig/{DashboardId.current}, e.g. dashboardConfig/sales, dashboardConfig/marketing
   // — never a single shared document. This is what guarantees publishing Sales can never overwrite
   // Marketing: they're different document IDs, so a write to one physically cannot touch the
   // other. Firestore Security Rules restrict writing any dashboardConfig/* document to Admins only
   // (see deployment notes) — enforced server-side, not just by hiding the button.
-  // ---- Requirement 1 (Part 5): this IS the dashboard's one "Save Changes" action — it bundles
+  // ---- Requirement 1 (Part 5): this IS the dashboard's one "Save Dashboard" action — it bundles
   // every setting from every module (layout, theme, sheet + selected tab, calculated fields,
   // filters, title/description, logo) into one write, validates the two things that would make
   // that write meaningless (a real backend connection and Admin permission) before ever touching
@@ -5866,11 +6073,37 @@ const ConfigManager = {
     try {
       await window.Firebase.setDoc(window.Firebase.doc(Auth.db, 'dashboardConfig', DashboardId.current), Object.assign({}, cfg, { dashboardId: DashboardId.current, publishedAt, publishedBy: (State.get('session') || {}).email || null }));
       try { localStorage.setItem(this.LOCAL_SYNC_MARK_KEY, String(publishedAt)); } catch(err){}
-      UI.toast('\u2713 Changes saved successfully.');
+      this.published = true;
+      SettingsUI.updateShareButtonState();
+      UI.toast('Dashboard saved successfully.');
       return true;
     } catch(err){
       ErrorHandler.capture(err, 'ConfigManager.publish');
-      UI.toast('Could not save changes — check your connection and try again.', true);
+      UI.toast('Unable to save dashboard. Please try again.', true);
+      return false;
+    }
+  },
+  // ---- Reset Dashboard (Part 3): clears the CURRENT working dashboard's local state back to
+  // blank. Deliberately LOCAL ONLY — it removes exactly the localStorage keys each module already
+  // owns (the same set exportConfig()/_writeLocal() above read/write), and does NOT touch
+  // Firestore at all: the last-published dashboardConfig/{DashboardId.current} document (if any)
+  // is left completely untouched, so this can never delete a saved dashboard or affect any other
+  // dashboardId. LOCAL_SYNC_MARK_KEY is deliberately NOT cleared — leaving it as-is is what stops
+  // syncFromPublished() from immediately re-pulling the old published config back down on the
+  // reload below (it only re-syncs when Firestore's publishedAt is NEWER than this marker).
+  resetLocal(){
+    try {
+      localStorage.removeItem(Grid.STORAGE_KEY);
+      localStorage.removeItem(Theme.STORAGE_KEY);
+      localStorage.removeItem(SheetEngine.STORAGE_KEY);
+      localStorage.removeItem(CalcFields.STORAGE_KEY);
+      localStorage.removeItem(FilterEngine.STORAGE_KEY);
+      localStorage.removeItem(KpiEngine.STORAGE_KEY);
+      localStorage.removeItem(DashboardHeader.STORAGE_KEY);
+      localStorage.removeItem(CompanyLogo.STORAGE_KEY);
+      return true;
+    } catch(err){
+      ErrorHandler.capture(err, 'ConfigManager.resetLocal');
       return false;
     }
   },
@@ -5900,9 +6133,9 @@ const ConfigManager = {
       localStorage.setItem(Grid.STORAGE_KEY, JSON.stringify(cfg.widgets || []));
       if (cfg.theme) localStorage.setItem(Theme.STORAGE_KEY, JSON.stringify(cfg.theme));
       if (cfg.sheet) localStorage.setItem(SheetEngine.STORAGE_KEY, JSON.stringify(cfg.sheet));
-      if (cfg.autoRefreshMs !== undefined) localStorage.setItem(SheetEngine.AUTO_STORAGE_KEY, String(cfg.autoRefreshMs));
       localStorage.setItem(CalcFields.STORAGE_KEY, JSON.stringify(cfg.calcFields || []));
       localStorage.setItem(FilterEngine.STORAGE_KEY, JSON.stringify(cfg.filters || []));
+      localStorage.setItem(KpiEngine.STORAGE_KEY, JSON.stringify({ kpis: cfg.kpis || [], displayMode: cfg.kpiDisplayMode === 'short' ? 'short' : 'actual' }));
       if (cfg.meta) localStorage.setItem(DashboardHeader.STORAGE_KEY, JSON.stringify(cfg.meta));
       if (cfg.logo) localStorage.setItem(CompanyLogo.STORAGE_KEY, cfg.logo);
       else localStorage.removeItem(CompanyLogo.STORAGE_KEY);
@@ -5914,12 +6147,37 @@ const SettingsUI = {
   init(){
     document.getElementById('settings-close').addEventListener('click', () => this.close());
     document.getElementById('settings-publish-btn').addEventListener('click', Utils.safe(() => ConfigManager.publish(), 'SettingsUI.publish'));
+    document.getElementById('settings-reset-btn').addEventListener('click', Utils.safe(() => {
+      ConfirmModal.open({
+        title: 'Reset this dashboard?',
+        message: 'Are you sure you want to reset this dashboard? All dashboard configuration and connected data-source settings will be cleared.',
+        confirmLabel: 'Reset Dashboard',
+        onConfirm: () => {
+          const ok = ConfigManager.resetLocal();
+          if (!ok){ UI.toast('Unable to reset dashboard. Please try again.', true); return; }
+          UI.toast('Dashboard reset — starting blank.');
+          setTimeout(() => location.reload(), 500);
+        }
+      });
+    }, 'SettingsUI.reset'));
     document.getElementById('settings-export-btn').addEventListener('click', () => ConfigManager.download());
     document.getElementById('settings-import-input').addEventListener('change', Utils.safe(e => {
       const file = e.target.files && e.target.files[0];
       if (file) ConfigManager.importFromFile(file);
       e.target.value = '';
     }, 'SettingsUI.import'));
+    document.getElementById('settings-share-btn').addEventListener('click', Utils.safe(() => {
+      if (!ConfigManager.published) return; // defense in depth — button is already disabled
+      ShareModal.open();
+    }, 'SettingsUI.share'));
+    this.updateShareButtonState();
+  },
+  // Part 6: reflects ConfigManager.published onto the Share Dashboard button. Called once at
+  // boot and again right after a successful first save, so Share flips from disabled to enabled
+  // the moment there's actually something at that URL to share.
+  updateShareButtonState(){
+    document.getElementById('settings-share-btn').disabled = !ConfigManager.published;
+    document.getElementById('settings-share-btn').title = ConfigManager.published ? '' : 'Save the dashboard first';
   },
   open(){
     if (State.get('role') !== 'admin') return;
@@ -6052,12 +6310,197 @@ const UserManagerUI = {
   }
 };
 
+/* ================================================================
+   DashboardManager + DashboardManagerUI (Part 5) ---------------------------
+   Lists every saved dashboard (one row per dashboardConfig/{id} document)
+   and lets an Admin Open, Rename, or Delete any of them.
+
+   Open: navigates THIS tab to that dashboard's own ?dashboardId=... URL.
+   That's it — no separate "load into builder" logic is written here at all,
+   because DashboardId._resolve() + ConfigManager.syncFromPublished()
+   (both already existing) already do exactly that for any dashboardId in
+   the URL. Editing and hitting Save Dashboard afterwards therefore writes
+   back to that SAME document (ConfigManager.publish() always targets
+   dashboardConfig/{DashboardId.current}) — never a new one, so repeated
+   Open → Edit → Save cycles update one record, they never duplicate it.
+
+   Rename: patches ONLY the `meta.title` field of that dashboard's document
+   directly (via `merge:true`), without touching its id or any other saved
+   setting — the id (the Firestore document's own key) is never reassigned,
+   so the dashboard's share URL never changes.
+
+   Delete: removes ONLY that one dashboardConfig/{id} document. There is no
+   other Firestore collection keyed by dashboardId in this project (roles/*
+   is per-user, not per-dashboard) — so there is nothing else to safely clean
+   up alongside it.
+
+   Firestore Security Rules (see deployment notes) must allow Admins both
+   `list` and `get` on dashboardConfig/* (list is a separate permission from
+   get — needed for this drawer's list() call) and must keep write/delete
+   restricted to Admins only, exactly like the existing rule already
+   required for ConfigManager.publish(). The client-side role checks below
+   are a quiet UX nicety, not the real enforcement. */
+const DashboardManager = {
+  async list(){
+    if (!Auth.ready || !Auth.db) return [];
+    if (State.get('role') !== 'admin') return [];
+    try {
+      const snap = await window.Firebase.getDocs(window.Firebase.collection(Auth.db, 'dashboardConfig'));
+      const out = [];
+      snap.forEach(d => {
+        const data = d.data() || {};
+        out.push({
+          id: d.id,
+          title: (data.meta && data.meta.title) || d.id,
+          publishedAt: data.publishedAt || 0,
+          publishedBy: data.publishedBy || null
+        });
+      });
+      out.sort((a, b) => b.publishedAt - a.publishedAt); // most recently saved first
+      return out;
+    } catch(err){ ErrorHandler.capture(err, 'DashboardManager.list'); return []; }
+  },
+  // Builds this SAME page's URL with ?dashboardId swapped to the target — same origin/path,
+  // so Open just navigates, it never points anywhere new to deploy or host.
+  urlFor(id){
+    const url = new URL(window.location.href);
+    url.searchParams.set('dashboardId', id);
+    return url.toString();
+  },
+  async rename(id, newTitle){
+    if (State.get('role') !== 'admin') return { ok:false, error:'Only an Admin can rename dashboards.' };
+    const title = String(newTitle || '').trim().slice(0, 80);
+    if (!title) return { ok:false, error:'Enter a dashboard name.' };
+    try {
+      const ref = window.Firebase.doc(Auth.db, 'dashboardConfig', id);
+      const snap = await window.Firebase.getDoc(ref);
+      if (!snap.exists()) return { ok:false, error:'That dashboard no longer exists.' };
+      const data = snap.data() || {};
+      await window.Firebase.setDoc(ref, { meta: Object.assign({}, data.meta, { title }) }, { merge:true });
+      // If the dashboard being renamed is also the one open in THIS tab right now, keep the
+      // on-screen header in sync immediately via the existing saveMeta() path, instead of
+      // leaving it stale until the next reload.
+      if (id === DashboardId.current && DashboardHeader.meta){
+        DashboardHeader.saveMeta(title, DashboardHeader.meta.description);
+      }
+      return { ok:true };
+    } catch(err){ ErrorHandler.capture(err, 'DashboardManager.rename'); return { ok:false, error:'Unable to rename dashboard.' }; }
+  },
+  async remove(id){
+    if (State.get('role') !== 'admin') return { ok:false, error:'Only an Admin can delete dashboards.' };
+    try {
+      await window.Firebase.deleteDoc(window.Firebase.doc(Auth.db, 'dashboardConfig', id));
+      return { ok:true };
+    } catch(err){ ErrorHandler.capture(err, 'DashboardManager.remove'); return { ok:false, error:'Unable to delete dashboard.' }; }
+  }
+};
+
+const DashboardManagerUI = {
+  _dashboards: [],
+  init(){
+    document.getElementById('manager-close').addEventListener('click', () => this.close());
+    // "New Dashboard": drops the dashboardId param entirely — Part 4's DashboardId._resolve()
+    // already turns a bare URL into a fresh, never-published blank id, so this is the ONE place
+    // that needs to know how to start a new dashboard, and it's a one-line navigation, not a
+    // second builder-reset implementation.
+    document.getElementById('manager-new-btn').addEventListener('click', () => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('dashboardId');
+      url.searchParams.delete('dashboard');
+      window.location.href = url.toString();
+    });
+  },
+  async renderList(){
+    const wrap = document.getElementById('manager-list');
+    wrap.innerHTML = '<p class="text-small text-mute-inline"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading…</p>';
+    this._dashboards = await DashboardManager.list();
+    if (!this._dashboards.length){
+      wrap.innerHTML = '<p class="text-small text-mute-inline manager-empty">No dashboards saved yet — build one and click Save Dashboard.</p>';
+      return;
+    }
+    wrap.innerHTML = this._dashboards.map(d => `
+      <div class="manager-row" data-id="${Utils.esc(d.id)}">
+        <div class="manager-row-info">
+          <span class="manager-row-title">${Utils.esc(d.title)}</span>
+          <span class="manager-row-status">${d.id === DashboardId.current ? 'Currently open · ' : ''}Saved${d.publishedAt ? ' ' + new Date(d.publishedAt).toLocaleDateString() : ''}</span>
+        </div>
+        <div class="manager-row-actions">
+          <button class="glass-btn icon-only manager-open-btn" title="Open"><i class="fa-solid fa-folder-open"></i></button>
+          <button class="glass-btn icon-only manager-rename-btn" title="Rename"><i class="fa-solid fa-pen"></i></button>
+          <button class="glass-btn icon-only manager-delete-btn" title="Delete" style="color:var(--accent-coral);"><i class="fa-solid fa-trash"></i></button>
+        </div>
+      </div>`).join('');
+    this._wireRowActions();
+  },
+  _wireRowActions(){
+    const wrap = document.getElementById('manager-list');
+    wrap.querySelectorAll('.manager-open-btn').forEach(btn => btn.addEventListener('click', () => {
+      const id = btn.closest('[data-id]').dataset.id;
+      window.location.href = DashboardManager.urlFor(id);
+    }));
+    wrap.querySelectorAll('.manager-delete-btn').forEach(btn => btn.addEventListener('click', () => {
+      const row = btn.closest('[data-id]');
+      const id = row.dataset.id;
+      const dash = this._dashboards.find(d => d.id === id);
+      ConfirmModal.open({
+        title: 'Delete this dashboard?',
+        message: 'Are you sure you want to delete this dashboard? This action cannot be undone.',
+        confirmLabel: 'Delete',
+        onConfirm: Utils.safe(async () => {
+          const result = await DashboardManager.remove(id);
+          if (!result.ok){ UI.toast(result.error || 'Unable to delete dashboard.', true); return; }
+          UI.toast((dash ? dash.title : 'Dashboard') + ' deleted.');
+          this.renderList();
+        }, 'DashboardManagerUI.delete')
+      });
+    }));
+    wrap.querySelectorAll('.manager-rename-btn').forEach(btn => btn.addEventListener('click', Utils.safe(() => {
+      const row = btn.closest('[data-id]');
+      const id = row.dataset.id;
+      const dash = this._dashboards.find(d => d.id === id);
+      const info = row.querySelector('.manager-row-info');
+      const actions = row.querySelector('.manager-row-actions');
+      const original = info.innerHTML;
+      info.innerHTML = `<form class="manager-row-rename-form">
+        <input type="text" class="glass-input" value="${Utils.esc(dash ? dash.title : '')}" maxlength="80" autocomplete="off">
+      </form>`;
+      actions.hidden = true;
+      const input = info.querySelector('input');
+      const form = info.querySelector('form');
+      input.focus(); input.select();
+      const cancel = () => { info.innerHTML = original; actions.hidden = false; };
+      document.addEventListener('keydown', function escOnce(e){ if (e.key === 'Escape'){ cancel(); document.removeEventListener('keydown', escOnce); } });
+      form.addEventListener('submit', Utils.safe(async e => {
+        e.preventDefault();
+        const result = await DashboardManager.rename(id, input.value);
+        if (!result.ok){ UI.toast(result.error || 'Unable to rename dashboard.', true); return; }
+        UI.toast('Dashboard renamed.');
+        this.renderList();
+      }, 'DashboardManagerUI.rename'));
+    }, 'DashboardManagerUI.renameOpen')));
+  },
+  open(){
+    if (State.get('role') !== 'admin') return;
+    this.renderList();
+    document.getElementById('manager-drawer').classList.add('open');
+    document.getElementById('manager-drawer').setAttribute('aria-hidden', 'false');
+    document.getElementById('drawer-backdrop').classList.add('open');
+  },
+  close(){
+    document.getElementById('manager-drawer').classList.remove('open');
+    document.getElementById('manager-drawer').setAttribute('aria-hidden', 'true');
+    document.getElementById('drawer-backdrop').classList.remove('open');
+  }
+};
+
 const App = {
   init(){
     // Multi-dashboard (Prompt 2): distinguishes browser tabs when an Admin has several dashboard
     // IDs open at once (e.g. Sales + Marketing). Purely cosmetic — DashboardId.current already
-    // drives the real isolation (localStorage keys, dashboardConfig/{id} document).
-    if (DashboardId.current !== DashboardId.DEFAULT_ID) document.title += ' — ' + DashboardId.current;
+    // drives the real isolation (localStorage keys, dashboardConfig/{id} document). Skipped for a
+    // freshly-generated blank id (Part 4) — showing a random 'new-xxxxx' slug in the tab title
+    // before the dashboard has even been named/saved would just be confusing.
+    if (!DashboardId.isNew && DashboardId.current !== DashboardId.DEFAULT_ID) document.title += ' — ' + DashboardId.current;
     ErrorHandler.init();
     Theme.init();
     ThemeUI.init();
@@ -6079,7 +6522,10 @@ const App = {
     ChartBuilderUI.init();
     TableBuilderUI.init();
     SettingsUI.init();
+    ConfirmModal.init();
+    ShareModal.init();
     UserManagerUI.init();
+    DashboardManagerUI.init();
     // Auth.restore() only tells us whether FIREBASE_CONFIG has been filled in for this
     // deployment — the actual login/shell decision is asynchronous (Firebase resolving any
     // existing sign-in) and handled reactively via the auth:login/auth:logout/auth:disabled
