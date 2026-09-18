@@ -565,6 +565,10 @@ button{ font-family:inherit; }
 }
 .rail-btn:hover{ color:var(--ink); background:var(--glass-fill-strong); transform:translateY(-1px); }
 .rail-btn.active{ color:#081018; background:var(--aurora-grad); box-shadow:0 6px 18px -6px var(--glow-violet); }
+/* Add-widget "+" gets its own small accent treatment (same gradient/glow already used for
+   .active above) so it reads as the rail's primary action, not just another nav icon. */
+#add-widget-btn{ width:40px; height:40px; color:#081018; background:var(--aurora-grad); box-shadow:0 5px 14px -6px var(--glow-violet); }
+#add-widget-btn:hover{ color:#081018; transform:translateY(-1px) scale(1.05); box-shadow:0 7px 18px -6px var(--glow-violet); }
 .rail-spacer{ flex:1; }
 [data-role="viewer"] .admin-only{ display:none !important; }
 
@@ -3894,8 +3898,11 @@ Components.register('kpis-panel', {
   // to the title, before the edit/remove buttons) so it applies to every KPI card at once
   // instead of living inside each KPI's own edit form.
   headerExtra(){
+    // Not .admin-only: both roles view the same numbers, so both should be able to flip how
+    // they're formatted. setDisplayMode() below has no role check either — it's a pure display
+    // preference, not a config edit — so removing the class is the only change needed here.
     const mode = KpiEngine.displayMode;
-    return `<div class="kpi-display-toggle admin-only" role="group" aria-label="KPI number display">
+    return `<div class="kpi-display-toggle" role="group" aria-label="KPI number display">
       <button type="button" class="kpi-display-toggle-btn${mode === 'actual' ? ' active' : ''}" data-kpi-display="actual">Actual Number</button>
       <button type="button" class="kpi-display-toggle-btn${mode === 'short' ? ' active' : ''}" data-kpi-display="short">Short Number</button>
     </div>`;
@@ -4853,6 +4860,7 @@ const TableEngine = {
     const measureCells = measureCols.map(c => {
       const cfg = this.colSettings(c, settings);
       const agg = cfg.agg || 'none';
+      if (cfg.format === 'text') return `<td>${Utils.esc(this.textValuesFor(node.rows, c))}</td>`;
       if (agg === 'none') return '<td></td>';
       const val = this.aggregateFor(node.rows, c, agg);
       // Ranges here are keyed by tree level (see heatRangeByLevel) since each cell shows an
@@ -4867,7 +4875,19 @@ const TableEngine = {
   },
   // Thin wrapper around DataEngine.aggregate kept here so Part 2 (Record Count / multi-measure
   // rework) has a single seam in TableEngine to extend without touching renderGroupNode again.
-  aggregateFor(rows, field, agg){ return DataEngine.aggregate(rows, field, agg); }
+  aggregateFor(rows, field, agg){ return DataEngine.aggregate(rows, field, agg); },
+  // A Text-format measure column can't be summed/averaged, so unlike a number column it should
+  // never render as a blank "agg: none" cell — instead show the distinct raw values present in
+  // that group (e.g. Month column inside a Project group showing "March, April, June").
+  textValuesFor(rows, field){
+    const seen = new Set();
+    rows.forEach(r => {
+      const v = r[field];
+      if (v === null || v === undefined || v === '') return;
+      seen.add(v instanceof Date ? v.toLocaleDateString() : String(v));
+    });
+    return [...seen].join(', ');
+  }
 };
 
 Components.register('table', {
