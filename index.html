@@ -6068,7 +6068,12 @@ const ConfigManager = {
   async publish(){
     if (!Auth.ready || !Auth.db){ UI.toast('Not connected to the backend yet — changes can\u2019t be saved right now.', true); return false; }
     if (State.get('role') !== 'admin'){ UI.toast('Only an Admin can save dashboard changes.', true); return false; }
-    const cfg = this.exportConfig();
+    // Firestore rejects any field whose value is `undefined`, anywhere in the object (even nested
+    // inside widgets/sheet/etc). exportConfig() can contain such holes (e.g. an optional widget
+    // field the user never filled in), which is what was throwing "Unsupported field value:
+    // undefined" on save. Round-tripping through JSON strips undefined keys (and turns any
+    // undefined array entries into null) without touching the rest of the save logic.
+    const cfg = JSON.parse(JSON.stringify(this.exportConfig()));
     const publishedAt = Date.now();
     try {
       await window.Firebase.setDoc(window.Firebase.doc(Auth.db, 'dashboardConfig', DashboardId.current), Object.assign({}, cfg, { dashboardId: DashboardId.current, publishedAt, publishedBy: (State.get('session') || {}).email || null }));
