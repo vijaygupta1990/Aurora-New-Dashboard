@@ -1645,6 +1645,18 @@ main#canvas-wrap{
       </select>
     </div>
 
+    <!-- Number format for the single Y field UI (Pie/Doughnut/Radar/Polar/Horizontal Bar) —
+         mirrors the per-Y-Field format dropdown Multi Y Field charts already have, so every
+         chart type ends up with a Number Format control one way or the other. Hidden for
+         Scatter/Bubble (raw points, no aggregation to format) and whenever Multi Y Field is
+         active (that UI's own per-row format takes over instead). -->
+    <div id="chart-format-row">
+      <label class="data-field-label" for="chart-format-select">Number format</label>
+      <select class="glass-input data-select" id="chart-format-select">
+        <option value="number">Number</option><option value="currency">Indian Currency</option><option value="percentage">Percentage</option>
+      </select>
+    </div>
+
     <!-- Multi Y Field — bar/line/area/stacked/grouped/combo charts configure one or more Y
          Fields here instead of the single Y field + Aggregation controls above (which stay in
          use for Pie/Radar/Polar/Scatter/Bubble/Horizontal Bar). Each row is independent: its own
@@ -4181,7 +4193,7 @@ const ChartEngine = {
   normalizeYFields(cfg){
     if (Array.isArray(cfg.yFields) && cfg.yFields.length) return cfg.yFields;
     if (!cfg.yField) return [];
-    return [{ field:cfg.yField, agg:cfg.agg || 'sum', chartType:'bar', format:'number', color:null }];
+    return [{ field:cfg.yField, agg:cfg.agg || 'sum', chartType:'bar', format:cfg.format || 'number', color:null }];
   },
   // One dataset per Y Field, each independently aggregated (reuses aggregate() as-is — labels
   // don't depend on which Y field is being summed, only on rows/xField/dateGroup/xOrder, so
@@ -4344,9 +4356,10 @@ const ChartEngine = {
         }
       }
       // This Y Field's own Number Format drives its tooltip/data-label text, but only when it
-      // was actually set via the Multi Y Field UI (hasOwnYFields) — a pre-existing chart that
-      // has never been re-saved through that UI keeps its exact original formatting, unchanged.
-      if (hasOwnYFields && solo.format) datasets.forEach(ds => { if (ds.label !== 'Trend') ds._numFormat = solo.format; });
+      // was actually set — via the Multi Y Field UI (hasOwnYFields) or the single Y Field
+      // Number Format control (cfg.format) — so a pre-existing chart that predates both keeps
+      // its exact original (unformatted) tooltip/data-label text, unchanged.
+      if ((hasOwnYFields || cfg.format) && solo.format) datasets.forEach(ds => { if (ds.label !== 'Trend') ds._numFormat = solo.format; });
     }
 
     // Same global Actual/Short toggle as the Key Metrics cards, applied only to whichever axis
@@ -4489,8 +4502,12 @@ const ChartBuilderUI = {
       }
       const seriesField = document.getElementById('chart-series-select').value || null;
       const sizeField = document.getElementById('chart-size-select').value || null;
+      // Single Y Field Number Format — only meaningful outside Multi Y Field charts, whose own
+      // per-row format already covers this; undefined there so those widgets keep their exact
+      // pre-existing shape (see the yFields comment just below).
+      const format = isMultiCapable ? undefined : (document.getElementById('chart-format-select').value || 'number');
       const fields = {
-        title, chartType:type, xField, yField, agg, seriesField, sizeField,
+        title, chartType:type, xField, yField, agg, seriesField, sizeField, format,
         // Multi Y Field config — undefined (dropped by JSON.stringify on save) for chart types
         // that don't support it, so those widgets keep the exact pre-existing yField/agg shape.
         yFields: yFieldsArr || undefined,
@@ -4609,6 +4626,7 @@ const ChartBuilderUI = {
     const suppressForMultiY = isMultiCapable && this.yFieldsDraft.length > 1;
     document.getElementById('chart-y-single-row').hidden = isMultiCapable;
     document.getElementById('chart-agg-row').hidden = meta.family === 'xy' || isMultiCapable;
+    document.getElementById('chart-format-row').hidden = meta.family === 'xy' || isMultiCapable;
     document.getElementById('chart-yfields-section').hidden = !isMultiCapable;
     document.getElementById('chart-series-row').hidden = meta.family === 'xy' || suppressForMultiY;
     document.getElementById('chart-size-row').hidden = !meta.needsSize;
@@ -4654,6 +4672,7 @@ const ChartBuilderUI = {
     document.getElementById('chart-series-select').value = widget.seriesField || '';
     document.getElementById('chart-size-select').value = widget.sizeField || '';
     document.getElementById('chart-agg-select').value = widget.agg || 'sum';
+    document.getElementById('chart-format-select').value = widget.format || 'number';
     document.getElementById('chart-dategroup-select').value = widget.dateGroup || '';
     document.getElementById('chart-trendline-check').checked = !!widget.trendline;
     document.getElementById('chart-multicolor-check').checked = !!widget.multiColor;
