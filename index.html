@@ -4270,21 +4270,32 @@ const ChartEngine = {
       });
     }
 
-    const isPie = meta.family === 'pie', isRadar = meta.family === 'radar', isCombo = meta.family === 'combo';
-    const isLine = meta.jsType === 'line';
     // Multi Y Field only kicks in for bar/line/area/stacked/grouped/combo charts (never
     // horizontal bar, whose value axis is x, not y) and only once a 2nd Y Field is actually
     // configured — a chart saved (or still configured) with a single Y field always falls
     // through to the untouched original code path below, seriesField/Multi-Color/Trendline
     // and all.
     const yFields = this.normalizeYFields(cfg);
+    // Custom Y Field Pie/Doughnut: the per-Y-Field chart-type dropdown (Bar/Line/Area/Pie/
+    // Doughnut) can request Pie/Doughnut for the PRIMARY (first) Y Field. When it does, the
+    // whole widget renders as that pie family chart — using the existing X field as the
+    // category/label and that Y Field's own aggregation as the value — through the exact same
+    // solo aggregate()+isPie path below that already renders the top-level Chart Type's Pie/
+    // Doughnut option, so no separate chart system is introduced. This never fires for a plain
+    // old widget.yField config (normalizeYFields defaults its chartType to 'bar').
+    const primaryYType = yFields.length ? yFields[0].chartType : null;
+    const yFieldPieType = (primaryYType === 'pie' || primaryYType === 'doughnut') ? primaryYType : null;
+    const isPie = meta.family === 'pie' || !!yFieldPieType;
+    const isRadar = meta.family === 'radar';
+    const isCombo = meta.family === 'combo' && !yFieldPieType;
+    const isLine = meta.jsType === 'line' && !yFieldPieType;
     // Only true when the widget actually has its own widget.yFields (saved via the new Multi Y
     // Field UI) — never for a plain old widget.yField/agg config, which normalizeYFields()
     // above also wraps into a same-shaped array purely so the code below has one shape to read.
     // Gates the per-field Number Format below so pre-existing charts keep their exact original
     // (unformatted) tooltip/data-label text instead of silently picking up a 'number' format.
     const hasOwnYFields = Array.isArray(cfg.yFields) && cfg.yFields.length > 0;
-    const isMultiY = (meta.family === 'cat' || isCombo) && meta.indexAxis !== 'y' && yFields.length > 1;
+    const isMultiY = !yFieldPieType && (meta.family === 'cat' || isCombo) && meta.indexAxis !== 'y' && yFields.length > 1;
 
     let labels, datasets;
     if (isMultiY){
@@ -4388,7 +4399,8 @@ const ChartEngine = {
       };
     }
 
-    return new Chart(canvas.getContext('2d'), { type: (isCombo || isMultiY) ? 'bar' : meta.jsType, data:{ labels, datasets }, options,
+    const effectiveJsType = yFieldPieType || meta.jsType;
+    return new Chart(canvas.getContext('2d'), { type: (isCombo || isMultiY) ? 'bar' : effectiveJsType, data:{ labels, datasets }, options,
       plugins: cfg.dataLabels ? [this.dataLabelPlugin] : [] });
   },
 
@@ -4540,7 +4552,7 @@ const ChartBuilderUI = {
           <option value="min">Minimum</option><option value="max">Maximum</option>
         </select>
         <select class="glass-input mini-select chart-yfield-type" data-idx="${i}">
-          <option value="bar">Bar</option><option value="line">Line</option><option value="area">Area</option>
+          <option value="bar">Bar</option><option value="line">Line</option><option value="area">Area</option><option value="pie">Pie</option><option value="doughnut">Doughnut</option>
         </select>
         <select class="glass-input mini-select chart-yfield-format" data-idx="${i}">
           <option value="number">Number</option><option value="currency">Indian Currency</option><option value="percentage">Percentage</option>
